@@ -71,3 +71,8 @@ tmp/
 fabric.properties
 *BAK.java
 hs_err_pid*.log
+
+# [DumbTube] never commit signing material
+keystore.properties
+*.jks
+*.keystore
