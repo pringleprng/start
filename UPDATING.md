@@ -83,7 +83,7 @@ Conflicts can only happen in the few upstream files that carry a hook. List them
 | `common/.../controllers/PlayerUIController.java` | 5 `ChannelCaptions...` lines in `onSubtitleClicked()` / `onSubtitleLongClicked()` |
 | `common/.../controllers/ErrorFixerController.java` | `ChannelCaptions...suspendFor(...)` in `disableSubtitles()` |
 | `common/.../app/models/data/Video.java` | first line of `isSectionPlaylistEnabled()` |
-| `common/.../misc/MotherActivity.java` | `DumbTubeDefaults.applyOnce(this)` before and `OledNeonTheme.applyColors(this)` + `SidebarStyle.applyTheme(this)` after `initDpi(); initTheme();` in `onCreate()`; `TextDimmer.attach(this)`, `OledNeonTheme.attach(this)`, `TopBarIcons.attach(this)` in `onResume()` |
+| `common/.../misc/MotherActivity.java` | `DumbTubeDefaults.applyOnce(this)` before and `OledNeonTheme.applyColors(this)` + `SidebarStyle.applyTheme(this)` + `ContentTop.applyTheme(this)` after `initDpi(); initTheme();` in `onCreate()`; `TextDimmer.attach(this)`, `OledNeonTheme.attach(this)`, `TopBarIcons.attach(this)` in `onResume()` |
 | `common/.../exoplayer/other/SubtitleManager.java` | `TextDimmer.dimCaptionStyle(...)` before both `mSubtitleView.setStyle(style)` |
 | `common/.../prefs/MainUIData.java` | one line at the top of `getColorSchemes()`, `getColorScheme()`, `setColorScheme()` |
 | `smarttubetv/.../presenter/VideoCardPresenter.java`, `ChannelCardPresenter.java`, `SettingsCardPresenter.java`, `presenter/vineyard/TagPresenter.java` | 2 lines (`focusBackground`/`focusText`) after the selected card colors are set |
@@ -116,7 +116,7 @@ git submodule update --init --recursive
 
 ```bash
 grep -rn "\[DumbTube\]" --include=*.java --include=build.gradle . | grep -v "/dumbtube/\|/build/" | wc -l
-# expected: 41  (MotherActivity 6, PlayerUIController 5, BrowsePresenter 4, MainUIData 3, MultipleRowsFragment 2,
+# expected: 42  (MotherActivity 7, PlayerUIController 5, BrowsePresenter 4, MainUIData 3, MultipleRowsFragment 2,
 #                AppDataSourceManager 2, SubtitleManager 2, ComplexImageView 2, 4 card presenters x 2,
 #                VideoStateController 1, ErrorFixerController 1, HQDialogController 1, Video 1,
 #                SidebarService 1, IconHeaderItemPresenter 1, build.gradle 1)

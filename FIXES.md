@@ -32,6 +32,7 @@ fully qualified class name, so no import lines change.
 | 10 | [Card video length badge style](#10-card-video-length-badge-outlined-text-color-brightness) | 32.80s |
 | 11 | [LIVE! sidebar section](#11-live-sidebar-section-live-and-past-streams-of-subscriptions) | 32.80s |
 | 12 | [Sidebar icons only + icon size](#12-sidebar-icons-only-mode-and-icon-size) | 32.80s |
+| 13 | [Content starts higher without the clock](#13-content-area-starts-higher-when-the-clock-is-hidden) | 32.80s |
 
 ---
 
@@ -397,3 +398,26 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 - new: `common/.../dumbtube/SidebarStyle.java`, `smarttubetv/src/main/res/values/dumbtube_sidebar.xml`
 
 **Drop it when:** upstream adds a compact/icon-only sidebar option (Settings › Main UI).
+
+## 13. Content area starts higher when the clock is hidden
+
+**Commit:** `[DumbTube] Content area starts higher when the clock is hidden`
+
+**What it does:** when the top-right clock + date are hidden (Settings › Main UI; hidden by default in
+DumbTube, see 9), the rows and grids of every browse screen start at **90dp** instead of SmartTube's
+130dp. That covers Home, Subscriptions, LIVE!, channels and the rest. The empty band at the top is
+gone, also while scrolling, where the selected row keeps that offset. 90dp stays just below the search
+icon (27dp padding + 52dp orb with 1.2× focus zoom ≈ 84dp). Change the value in
+`smarttubetv/src/main/res/values/dumbtube_layout.xml`. Turning the clock back on restores SmartTube's
+spacing from the next screen / app start.
+
+Theme overlay `ThemeOverlay.DumbTube.Content.NoClock` sets leanback's `browseRowsMarginTop`, which both
+the rows alignment (`BrowseSupportFragment`) and the grid top padding
+(`Widget.Leanback.GridItems.VerticalGridView`) read.
+
+**Files**
+- `common/.../misc/MotherActivity.java`: `onCreate()` → `ContentTop.applyTheme(this)` (1 hook)
+- new: `common/.../dumbtube/ContentTop.java`, `smarttubetv/src/main/res/values/dumbtube_layout.xml`
+
+**Drop it when:** upstream adapts the top spacing to the clock setting itself (check
+`lb_browse_rows_margin_top` in `smarttubetv/src/main/res/values/dimens.xml`).
