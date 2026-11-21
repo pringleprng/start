@@ -26,5 +26,7 @@
     <string translatable="false" name="dumbtube_caption_brightness">Caption brightness</string>
 
     <!-- OLED neon theme -->
-    <string translatable="false" name="dumbtube_theme_oled_neon">OLED (neon green) - DumbTube</string>
+    <string translatable="false" name="dumbtube_theme_oled_neon">OLED - DumbTube</string>
+    <string translatable="false" name="dumbtube_oled_focus_color">OLED theme: focus color (focused cards and tiles)</string>
+    <string translatable="false" name="dumbtube_oled_accent_color">OLED theme: accent color (seek bar, player icons, switches, progress)</string>
 </resources>
