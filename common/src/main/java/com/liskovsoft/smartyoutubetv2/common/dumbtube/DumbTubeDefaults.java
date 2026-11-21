@@ -43,6 +43,9 @@ public final class DumbTubeDefaults {
             showLiveSectionAfterSubscriptions(context);
             prefs.setBoolean(KEY_LIVE_SECTION, true);
         }
+
+        // Not a default: pins made before the fix still show a video thumbnail. Runs in the background, once per start.
+        PinnedChannelIcons.repairOnce(context);
     }
 
     /**
