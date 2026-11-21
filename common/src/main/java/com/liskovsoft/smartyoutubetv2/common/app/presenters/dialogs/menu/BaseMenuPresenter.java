@@ -86,6 +86,7 @@ public abstract class BaseMenuPresenter extends BasePresenter<Void> {
                                         metadata -> {
                                             Video video = Video.from(original);
                                             video.sync(metadata);
+                                            com.liskovsoft.smartyoutubetv2.common.dumbtube.PinnedChannelIcons.useChannelIcon(video, metadata); // [DumbTube]
                                             togglePinToSidebar(createPinnedChannel(video));
                                         }
                                 );
