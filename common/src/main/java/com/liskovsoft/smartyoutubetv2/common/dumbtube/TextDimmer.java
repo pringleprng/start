@@ -3,7 +3,6 @@ package com.liskovsoft.smartyoutubetv2.common.dumbtube;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -220,10 +219,11 @@ public final class TextDimmer {
             return color;
         }
 
-        return Color.argb(Color.alpha(color),
-                Math.round(Color.red(color) * factor),
-                Math.round(Color.green(color) * factor),
-                Math.round(Color.blue(color) * factor));
+        // Same as Color.argb(alpha, red * f, green * f, blue * f), without Android (plain JUnit tests)
+        return (color & 0xFF000000)
+                | Math.round(((color >> 16) & 0xFF) * factor) << 16
+                | Math.round(((color >> 8) & 0xFF) * factor) << 8
+                | Math.round((color & 0xFF) * factor);
     }
 
     private static final class WindowDimmer implements ViewTreeObserver.OnPreDrawListener {
