@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DumbTube] Sidebar "icons only": rows start right after the compact sidebar.
+     browseRowsMarginStart = SidebarStyle.compactPanelWidthDp(size) - 5dp (upstream: 270dp sidebar, 265dp margin).
+     Applied by SidebarStyle.applyTheme(); keep the sizes in sync with SidebarStyle.ICON_SIZES_DP. -->
+<resources>
+    <style name="ThemeOverlay.DumbTube.Sidebar.Compact.24" parent="">
+        <item name="browseRowsMarginStart">100dp</item>
+    </style>
+    <style name="ThemeOverlay.DumbTube.Sidebar.Compact.32" parent="">
+        <item name="browseRowsMarginStart">109dp</item>
+    </style>
+    <style name="ThemeOverlay.DumbTube.Sidebar.Compact.40" parent="">
+        <item name="browseRowsMarginStart">119dp</item>
+    </style>
+    <style name="ThemeOverlay.DumbTube.Sidebar.Compact.48" parent="">
+        <item name="browseRowsMarginStart">129dp</item>
+    </style>
+    <style name="ThemeOverlay.DumbTube.Sidebar.Compact.56" parent="">
+        <item name="browseRowsMarginStart">138dp</item>
+    </style>
+    <style name="ThemeOverlay.DumbTube.Sidebar.Compact.64" parent="">
+        <item name="browseRowsMarginStart">148dp</item>
+    </style>
+</resources>
