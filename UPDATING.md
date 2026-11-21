@@ -85,7 +85,9 @@ Conflicts can only happen in the few upstream files that carry a hook. List them
 | `common/.../app/models/data/Video.java` | first line of `isSectionPlaylistEnabled()` |
 | `common/.../misc/MotherActivity.java` | `DumbTubeDefaults.applyOnce(this)` before and `OledNeonTheme.applyColors(this)` + `SidebarStyle.applyTheme(this)` + `ContentTop.applyTheme(this)` after `initDpi(); initTheme();` in `onCreate()`; `TextDimmer.attach(this)`, `OledNeonTheme.attach(this)`, `TopBarIcons.attach(this)` in `onResume()` |
 | `common/.../exoplayer/other/SubtitleManager.java` | `TextDimmer.dimCaptionStyle(...)` before both `mSubtitleView.setStyle(style)` |
-| `common/.../prefs/MainUIData.java` | one line at the top of `getColorSchemes()`, `getColorScheme()`, `setColorScheme()` |
+| `common/.../prefs/MainUIData.java` | one line at the top of `getColorSchemes()`, `getColorScheme()`, `setColorScheme()`, `getVideoGridScale()` |
+| `common/.../presenters/settings/MainUISettingsPresenter.java`, `UIScaleSettingsPresenter.java` | `CardsPerLine.appendSettings(...)` as the first line of `appendVideoGridScale()` |
+| `common/.../presenters/dialogs/menu/BaseMenuPresenter.java` | `PinnedChannelIcons.useChannelIcon(video, metadata)` after `video.sync(metadata)` in `appendTogglePinVideoToSidebarButton()` |
 | `smarttubetv/.../presenter/VideoCardPresenter.java`, `ChannelCardPresenter.java`, `SettingsCardPresenter.java`, `presenter/vineyard/TagPresenter.java` | 2 lines (`focusBackground`/`focusText`) after the selected card colors are set |
 | `smarttubetv/.../widgets/complexcardview/ComplexImageView.java` | `CardBadge.restyle(mBadgeText)` in `setBadgeText()` and `setBadgeColor()` |
 | `common/.../controllers/HQDialogController.java` | `addCategoryInt(TextDimmer.createPlayerTextCategory(...))` in `onHighQualityClicked()` |
@@ -116,10 +118,11 @@ git submodule update --init --recursive
 
 ```bash
 grep -rn "\[DumbTube\]" --include=*.java --include=build.gradle . | grep -v "/dumbtube/\|/build/" | wc -l
-# expected: 42  (MotherActivity 7, PlayerUIController 5, BrowsePresenter 4, MainUIData 3, MultipleRowsFragment 2,
+# expected: 46  (MotherActivity 7, PlayerUIController 5, BrowsePresenter 4, MainUIData 4, MultipleRowsFragment 2,
 #                AppDataSourceManager 2, SubtitleManager 2, ComplexImageView 2, 4 card presenters x 2,
 #                VideoStateController 1, ErrorFixerController 1, HQDialogController 1, Video 1,
-#                SidebarService 1, IconHeaderItemPresenter 1, build.gradle 1)
+#                SidebarService 1, IconHeaderItemPresenter 1, MainUISettingsPresenter 1,
+#                UIScaleSettingsPresenter 1, BaseMenuPresenter 1, build.gradle 1)
 git diff --stat "$NEW" HEAD -- $(git diff --name-only "$NEW" HEAD | grep -vi dumbtube)
 # expected: only the files from the table above, only added lines
 ```
