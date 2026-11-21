@@ -1,0 +1,236 @@
+# [DumbTube] Build a signed DumbTube APK and publish it as a GitHub Release.
+#
+# Run it from the Actions tab: "DumbTube Release" -> "Run workflow" -> pick your DumbTube branch.
+# Needs 4 repository secrets (see RELEASING.md):
+#   DUMBTUBE_KEYSTORE_BASE64, DUMBTUBE_KEYSTORE_PASSWORD, DUMBTUBE_KEY_ALIAS, DUMBTUBE_KEY_PASSWORD
+#
+# Versioning (see smarttubetv/dumbtube.gradle):
+#   versionName = <upstream versionName>-dt<revision>      e.g. 32.80-dt1
+#   versionCode = <upstream versionCode> * 100 + revision  e.g. 247001
+#   tag         = v<versionName>                           e.g. v32.80-dt1
+# The revision is picked automatically (1, 2, ... per upstream version) unless given.
+#
+# Release assets:
+#   DumbTube-<versionName>.apk         universal APK (armeabi-v7a + arm64-v8a)
+#   DumbTube-<versionName>.apk.sha256  checksum
+#   dumbtube.json                      manifest read by the in-app update checker
+#                                      (https://github.com/<repo>/releases/latest/download/dumbtube.json)
+
+name: DumbTube Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 'DumbTube revision 1-99 for this upstream version (empty = next free one)'
+        required: false
+        default: ''
+      notes:
+        description: 'Extra line for the release notes / in-app changelog (optional)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dumbtube-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      DUMBTUBE_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 0 # tags are needed to pick the next revision
+
+      - name: Check signing secrets
+        env:
+          KS_B64: ${{ secrets.DUMBTUBE_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.DUMBTUBE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DUMBTUBE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.DUMBTUBE_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KS_B64" ]    || missing="$missing DUMBTUBE_KEYSTORE_BASE64"
+          [ -n "$KS_PASS" ]   || missing="$missing DUMBTUBE_KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || missing="$missing DUMBTUBE_KEY_ALIAS"
+          [ -n "$KEY_PASS" ]  || missing="$missing DUMBTUBE_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. See RELEASING.md."
+            exit 1
+          fi
+
+      - name: Compute version
+        id: version
+        env:
+          INPUT_REVISION: ${{ github.event.inputs.revision }}
+        run: |
+          set -euo pipefail
+          # Upstream values from defaultConfig (first match = defaultConfig, flavors don't set them)
+          up_name=$(grep -m1 -E '^\s*versionName\s+"' smarttubetv/build.gradle | sed -E 's/.*"(.*)".*/\1/')
+          up_code=$(grep -m1 -E '^\s*versionCode\s+[0-9]+' smarttubetv/build.gradle | grep -oE '[0-9]+')
+          [ -n "$up_name" ] && [ -n "$up_code" ] || { echo "::error::Cannot read upstream version"; exit 1; }
+
+          if [ -n "${INPUT_REVISION:-}" ]; then
+            rev="$INPUT_REVISION"
+          else
+            last=$(git tag -l "v${up_name}-dt*" | sed -E "s/^v${up_name//./\\.}-dt//" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+            rev=$(( ${last:-0} + 1 ))
+          fi
+          if ! [[ "$rev" =~ ^[0-9]+$ ]] || [ "$rev" -lt 1 ] || [ "$rev" -gt 99 ]; then
+            echo "::error::Revision must be 1-99, got '$rev'"; exit 1
+          fi
+
+          name="${up_name}-dt${rev}"
+          code=$(( up_code * 100 + rev ))
+          tag="v${name}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "::error::Tag ${tag} already exists. Pick another revision."; exit 1
+          fi
+
+          {
+            echo "upstream_name=${up_name}"
+            echo "revision=${rev}"
+            echo "name=${name}"
+            echo "code=${code}"
+            echo "tag=${tag}"
+            echo "apk=DumbTube-${name}.apk"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building DumbTube ${name} (versionCode ${code}), tag ${tag}"
+
+      - name: Check version is newer than the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.version.outputs.code }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/prev"
+          if gh release download --repo "$GITHUB_REPOSITORY" --pattern dumbtube.json --dir "$RUNNER_TEMP/prev" 2>/dev/null; then
+            prev=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(max(v['versionCode'] for k,v in d.items() if k!='package'))" "$RUNNER_TEMP/prev/dumbtube.json")
+            echo "Latest released versionCode: $prev, new: $CODE"
+            if [ "$CODE" -le "$prev" ]; then
+              echo "::error::New versionCode $CODE is not higher than the latest release ($prev). The in-app updater would ignore it."
+              exit 1
+            fi
+          else
+            echo "No previous DumbTube release found (first release)."
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Configure signing
+        env:
+          KS_B64: ${{ secrets.DUMBTUBE_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.DUMBTUBE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DUMBTUBE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.DUMBTUBE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ks="$RUNNER_TEMP/dumbtube-release.jks"
+          printf '%s' "$KS_B64" | tr -d ' \r\n' | base64 --decode > "$ks"
+          esc() { local v="$1"; v="${v//\\/\\\\}"; printf '%s' "$v"; } # java.util.Properties escaping
+          {
+            echo "storeFile=$ks"
+            echo "storePassword=$(esc "$KS_PASS")"
+            echo "keyAlias=$(esc "$KEY_ALIAS")"
+            echo "keyPassword=$(esc "$KEY_PASS")"
+          } > keystore.properties
+          # Fail early with a clear message if the secrets don't open the keystore
+          keytool -list -keystore "$ks" -storepass "$KS_PASS" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error::Keystore/alias/password secrets don't match. See RELEASING.md."; exit 1; }
+
+      - name: Build signed release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :smarttubetv:assembleStdumbtubeRelease -PdumbtubeRevision=${{ steps.version.outputs.revision }}
+
+      - name: Verify APK
+        id: verify
+        run: |
+          set -euo pipefail
+          apk="smarttubetv/build/outputs/apk/stdumbtube/release/${{ steps.version.outputs.apk }}"
+          [ -f "$apk" ] || { echo "::error::$apk not found"; ls -la smarttubetv/build/outputs/apk/stdumbtube/release/ || true; exit 1; }
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$bt/apksigner" verify --print-certs "$apk" | tee apksigner.txt
+          grep -q "CN=Android Debug" apksigner.txt && { echo "::error::APK is debug-signed"; exit 1; }
+          if [ -x "$bt/aapt" ]; then aapt_bin="$bt/aapt"; else aapt_bin="$bt/aapt2"; fi
+          badging=$("$aapt_bin" dump badging "$apk" | head -1)
+          echo "$badging"
+          echo "$badging" | grep -q "name='com.dumbtube.tv'" || { echo "::error::Wrong package"; exit 1; }
+          echo "$badging" | grep -q "versionCode='${{ steps.version.outputs.code }}'" || { echo "::error::Wrong versionCode"; exit 1; }
+          echo "cert_sha256=$(grep -m1 'SHA-256 digest' apksigner.txt | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+          mkdir -p dist
+          cp "$apk" dist/
+          (cd dist && sha256sum "${{ steps.version.outputs.apk }}" > "${{ steps.version.outputs.apk }}.sha256")
+
+      - name: Release notes and update manifest
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+          CODE: ${{ steps.version.outputs.code }}
+          TAG: ${{ steps.version.outputs.tag }}
+          APK: ${{ steps.version.outputs.apk }}
+          UPSTREAM: ${{ steps.version.outputs.upstream_name }}
+          EXTRA_NOTES: ${{ github.event.inputs.notes }}
+          CERT: ${{ steps.verify.outputs.cert_sha256 }}
+        run: |
+          set -euo pipefail
+          git log --format='%s' --grep='^\[DumbTube\]' HEAD | sed 's/^\[DumbTube\] *//' > dumbtube-changes.txt
+          {
+            echo "DumbTube ${NAME}, based on SmartTube ${UPSTREAM}."
+            echo
+            if [ -n "${EXTRA_NOTES}" ]; then echo "${EXTRA_NOTES}"; echo; fi
+            echo "DumbTube changes in this build:"
+            sed 's/^/- /' dumbtube-changes.txt
+            echo
+            echo "Install: \`scripts/install-dumbtube.sh\` from Termux (see TERMUX.md), or sideload \`${APK}\`."
+            echo "versionCode ${CODE}, signing cert SHA-256 \`${CERT}\`."
+          } > release-notes.md
+          python3 - <<'PY'
+          import json, os
+          name, code, tag, apk = os.environ["NAME"], int(os.environ["CODE"]), os.environ["TAG"], os.environ["APK"]
+          repo = os.environ["DUMBTUBE_REPO"]
+          url = f"https://github.com/{repo}/releases/download/{tag}/{apk}"
+          changelog = [f"Based on SmartTube {os.environ['UPSTREAM']}"]
+          if os.environ.get("EXTRA_NOTES"):
+              changelog.append(os.environ["EXTRA_NOTES"])
+          changelog += [l.strip() for l in open("dumbtube-changes.txt") if l.strip()]
+          manifest = {
+              "package": {"downloadUrl": url, "downloadUrlList": [url]},
+              name: {"versionCode": code, "changelog": changelog},
+          }
+          with open("dist/dumbtube.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+          print(json.dumps(manifest, indent=2))
+          PY
+          cat release-notes.md
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NAME: ${{ steps.version.outputs.name }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "DumbTube $NAME" \
+            --notes-file release-notes.md \
+            --latest
+          echo "### Released DumbTube $NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f keystore.properties "$RUNNER_TEMP/dumbtube-release.jks"
