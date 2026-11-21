@@ -219,6 +219,7 @@ public class MotherActivity extends FragmentActivity {
         applyFullscreenModeIfNeeded();
 
         com.liskovsoft.smartyoutubetv2.common.dumbtube.TextDimmer.attach(this); // [DumbTube]
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.attach(this); // [DumbTube]
 
         // Restore this activity's screensaver policy after returning to the foreground.
         mScreensaverManager.resume();
