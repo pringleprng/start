@@ -324,7 +324,8 @@ by itself; use the settings.
 `[DumbTube] LIVE!: find currently live streams more reliably`,
 `[DumbTube] Hide past live streams from the Subscriptions page`,
 `[DumbTube] Subscriptions page: hide live streams too, LIVE! keeps all`,
-`[DumbTube] Subscriptions page: hide upcoming streams too`
+`[DumbTube] Subscriptions page: hide upcoming streams too`,
+`[DumbTube] LIVE!: add an Upcoming row`
 
 **What it does**
 - A new sidebar section **LIVE!** with its own icon (the Subscriptions stack with a broadcast symbol),
@@ -332,16 +333,17 @@ by itself; use the settings.
   - **Live now**: subscribed channels that are live right now. Uses YouTube's live flag, plus
     YouTube's own "LIVE" thumbnail overlay or "… watching" text (on a video without a length) as a
     fallback, because the flag depends on one tile style value that YouTube changes now and then.
-    SmartTube's *hide streams in Subscriptions* filter is lifted while LIVE! loads, so it can't hide
-    them. This row shows as soon as the first feed page is in.
+    SmartTube's *hide streams / upcoming in Subscriptions* filters are lifted while LIVE! loads, so
+    they can't hide anything here. This row shows as soon as the first feed page is in.
+  - **Upcoming**: scheduled streams and premieres found in the loaded part of the feed (first load:
+    up to 6 pages). Detected by YouTube's upcoming flag, an "UPCOMING" overlay, or "Scheduled for" /
+    "Premieres" / "… waiting" on a video without a length.
   - **Past live streams**: finished streams, newest to oldest (feed order). The first load reads up to
     6 feed pages (about 30 streams). Scrolling to the end of the row loads older feed pages, so it
     keeps going back through the whole feed.
-- Upcoming/scheduled streams, premieres and Shorts are left out.
+- Shorts and normal uploads are left out.
 - **The normal Subscriptions page hides all streams: live, upcoming (scheduled streams and
-  premieres) and finished.** Live and finished ones are only in LIVE!, which always shows them;
-  upcoming ones are shown in neither. Upcoming items are detected by YouTube's flag, an "UPCOMING"
-  overlay, or "Scheduled for" / "Premieres" / "… waiting" on a video without a length. Setting:
+  premieres) and finished.** They are all in LIVE! instead. Setting:
   Settings › DumbTube › *Subscriptions: hide all streams*, on by default. This covers the first page
   and every page loaded while scrolling. Items are removed in place, like SmartTube's own Shorts
   filter, so paging keeps working. Normal uploads stay.
