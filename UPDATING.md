@@ -92,6 +92,7 @@ Conflicts can only happen in the few upstream files that carry a hook. List them
 | `common/.../presenters/BrowsePresenter.java` | `LiveSection` lines in `initSectionMapping()`, `initRowAndGridMapping()` (LIVE! rows; Subscriptions filter right after the Subscriptions grid line) and after `continueGroupObserve(...)` in `continueGroup()` |
 | `common/.../presenters/service/SidebarService.java` | `mDefaultSections.put(... LiveSection.SECTION_ID)` after the Subscriptions line in `initSections()` |
 | `smarttubetv/.../presenter/IconHeaderItemPresenter.java` | `SidebarStyle.styleHeader(iconView, label)` in `onBindViewHolder()` |
+| `smarttubetv/.../browse/video/MultipleRowsFragment.java` | `LiveGridRows.update(...)` after the `group.isEmpty()` check in `update()`; `LiveGridRows.onItemSelected(...)` after `checkScrollEnd(...)` |
 | `.gitignore` | 4 lines at the end |
 
 For each conflict: **take upstream's version of the code, then re-add the one `// [DumbTube]` line**
@@ -115,7 +116,7 @@ git submodule update --init --recursive
 
 ```bash
 grep -rn "\[DumbTube\]" --include=*.java --include=build.gradle . | grep -v "/dumbtube/\|/build/" | wc -l
-# expected: 39  (MotherActivity 6, PlayerUIController 5, BrowsePresenter 4, MainUIData 3,
+# expected: 41  (MotherActivity 6, PlayerUIController 5, BrowsePresenter 4, MainUIData 3, MultipleRowsFragment 2,
 #                AppDataSourceManager 2, SubtitleManager 2, ComplexImageView 2, 4 card presenters x 2,
 #                VideoStateController 1, ErrorFixerController 1, HQDialogController 1, Video 1,
 #                SidebarService 1, IconHeaderItemPresenter 1, build.gradle 1)
