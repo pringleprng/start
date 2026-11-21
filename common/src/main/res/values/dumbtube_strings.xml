@@ -33,4 +33,12 @@
     <!-- Top bar / round icons -->
     <string translatable="false" name="dumbtube_icons_no_background">Icons without circle background (search and top bar icons)</string>
     <string translatable="false" name="dumbtube_icons_brightness">Search and top bar icon brightness</string>
+
+    <!-- Card video length badge -->
+    <string translatable="false" name="dumbtube_badge_text_color">Video length on cards: text color</string>
+    <string translatable="false" name="dumbtube_badge_outline_color">Video length on cards: outline color</string>
+    <string translatable="false" name="dumbtube_badge_brightness">Video length on cards: brightness</string>
+    <string translatable="false" name="dumbtube_badge_original">SmartTube original (white text, black box)</string>
+    <string translatable="false" name="dumbtube_badge_black">Black</string>
+    <string translatable="false" name="dumbtube_badge_no_outline">No outline</string>
 </resources>
