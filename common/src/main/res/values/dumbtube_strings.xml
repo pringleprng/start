@@ -50,4 +50,9 @@
     <string translatable="false" name="dumbtube_live_section">LIVE!</string>
     <string translatable="false" name="dumbtube_live_now">Live now</string>
     <string translatable="false" name="dumbtube_live_past">Past live streams</string>
+
+    <!-- Sidebar style -->
+    <string translatable="false" name="dumbtube_sidebar_icons_only">Sidebar: icons only (hide the words)</string>
+    <string translatable="false" name="dumbtube_sidebar_icon_size">Sidebar icon size</string>
+    <string translatable="false" name="dumbtube_sidebar_icon_size_default">%d dp (SmartTube default)</string>
 </resources>

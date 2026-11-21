@@ -80,6 +80,7 @@ public class MotherActivity extends FragmentActivity {
         initDpi();
         initTheme();
         com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.applyColors(this); // [DumbTube]
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.SidebarStyle.applyTheme(this); // [DumbTube]
 
         // Search Fullscreen routine inside onPause() method
         if (!mIsFullscreenModeEnabled) {
