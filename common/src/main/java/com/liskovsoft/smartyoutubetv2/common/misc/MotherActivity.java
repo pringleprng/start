@@ -76,6 +76,7 @@ public class MotherActivity extends FragmentActivity {
         mIsOculusQuestFixEnabled = PlayerTweaksData.instance(this).isOculusQuestFixEnabled();
         mIsFullscreenModeEnabled = GeneralData.instance(this).isFullscreenModeEnabled();
 
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.DumbTubeDefaults.applyOnce(this); // [DumbTube]
         initDpi();
         initTheme();
         com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.applyColors(this); // [DumbTube]
