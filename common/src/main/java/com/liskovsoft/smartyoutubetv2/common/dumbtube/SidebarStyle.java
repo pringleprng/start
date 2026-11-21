@@ -29,6 +29,8 @@ import java.util.List;
  * - icon size: 24-64 dp (SmartTube: 32 dp)<br/>
  * - pictures (pinned channels and playlists) are round, cropped to fill the circle, like YouTube's channel
  *   icons; SmartTube shows them square. Drawn icons (Home, Subscriptions...) stay as they are. Android 5+.<br/>
+ * - the focused item zooms from the icon's center, so the icon grows in place; leanback zooms it from the
+ *   item's left edge, which pushes the icon to the right<br/>
  * Applies to newly created screens, so a restart is asked for after changing it.<br/><br/>
  * Upstream hooks: IconHeaderItemPresenter.onBindViewHolder() -> {@link #styleHeader};
  * MotherActivity.onCreate() -> {@link #applyTheme}.
@@ -132,6 +134,8 @@ public final class SidebarStyle {
             if (Build.VERSION.SDK_INT >= 21) {
                 RoundPicture.apply(icon, isPicture);
             }
+
+            zoomFromIconCenter(icon);
         }
 
         if (label != null) {
@@ -144,6 +148,74 @@ public final class SidebarStyle {
         if (iconsOnly) {
             // The item isn't attached yet: size the sidebar once it is
             any.post(() -> resizePanel(any));
+        }
+    }
+
+    /**
+     * leanback zooms the focused item (1.2x) around a pivot on its left edge, set again on every layout
+     * (HeadersSupportFragment.sLayoutChangeListener). This listener runs after that one and moves the pivot to
+     * the icon's center: same zoom, but the icon stays where it is.
+     */
+    private static void zoomFromIconCenter(ImageView icon) {
+        View item = findZoomedItem(icon);
+
+        if (item == null || item.getTag(R.id.dumbtube_sidebar_zoom) != null) {
+            return;
+        }
+
+        View.OnLayoutChangeListener pivot = (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                centerPivotOn(v, icon);
+        item.setTag(R.id.dumbtube_sidebar_zoom, pivot);
+        item.addOnLayoutChangeListener(pivot); // added after leanback's (view holder creation), so it runs last
+
+        if (item.getWidth() > 0) {
+            centerPivotOn(item, icon); // already laid out (rebind)
+        }
+    }
+
+    /**
+     * The view leanback zooms: the item wrapper, i.e. the top ancestor below the headers list. While binding a
+     * new item it isn't in the list yet, so that is simply the top ancestor.
+     */
+    @Nullable
+    private static View findZoomedItem(View icon) {
+        Context context = icon.getContext();
+        int listId = context.getResources().getIdentifier("browse_headers", "id", context.getPackageName());
+
+        if (listId == 0) {
+            return null;
+        }
+
+        View item = icon;
+
+        for (ViewParent parent = icon.getParent(); parent instanceof View; parent = parent.getParent()) {
+            if (((View) parent).getId() == listId) {
+                break;
+            }
+            item = (View) parent;
+        }
+
+        return item != icon ? item : null;
+    }
+
+    private static void centerPivotOn(View item, View icon) {
+        float x = icon.getWidth() / 2f;
+        float y = icon.getHeight() / 2f;
+        View view = icon;
+
+        while (view != item) {
+            x += view.getLeft();
+            y += view.getTop();
+            ViewParent parent = view.getParent();
+            if (!(parent instanceof View)) {
+                return; // icon isn't inside this item (any more)
+            }
+            view = (View) parent;
+        }
+
+        if (item.getPivotX() != x || item.getPivotY() != y) {
+            item.setPivotX(x);
+            item.setPivotY(y);
         }
     }
 
