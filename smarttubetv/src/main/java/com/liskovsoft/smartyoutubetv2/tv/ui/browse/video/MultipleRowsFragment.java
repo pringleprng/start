@@ -247,6 +247,8 @@ public abstract class MultipleRowsFragment extends RowsSupportFragment implement
             return;
         }
 
+        if (com.liskovsoft.smartyoutubetv2.tv.dumbtube.LiveGridRows.update(group, mRowsAdapter, mCardPresenter, getContext())) { restorePosition(); return; } // [DumbTube]
+
         VideoGroupObjectAdapter existingAdapter = GridFragmentHelper.findRelatedAdapter(mVideoGroupAdapters, group, this::freeze);
 
         if (existingAdapter == null) {
@@ -359,6 +361,7 @@ public abstract class MultipleRowsFragment extends RowsSupportFragment implement
                 mMainPresenter.onVideoItemSelected((Video) item);
 
                 checkScrollEnd((Video)item);
+                com.liskovsoft.smartyoutubetv2.tv.dumbtube.LiveGridRows.onItemSelected((Video) item, mRowsAdapter, mMainPresenter); // [DumbTube]
             }
         }
 
