@@ -7,6 +7,7 @@ import org.junit.Test;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -82,6 +83,23 @@ public class LiveSectionTest {
         LiveSection.removeStreams(page);
 
         assertEquals(Arrays.asList(upload, null), page);
+    }
+
+    @Test
+    public void liveSectionSortsIntoThreeRows() {
+        MediaItem upload = item("upload", false, "12:34", "Channel • 3K views • 2 days ago", 754_000);
+        MediaItem live = item("live", true, "LIVE", "Channel • 1.2K watching", 0);
+        MediaItem upcoming = item("upcoming", false, "UPCOMING", "Channel • Scheduled for 11/22/26, 8:00 PM", 0);
+        MediaItem past = item("past", false, "2:13:45", "Channel • 12K views • Streamed 2 days ago", 8_025_000);
+        List<MediaItem> liveRow = new ArrayList<>();
+        List<MediaItem> upcomingRow = new ArrayList<>();
+        List<MediaItem> pastRow = new ArrayList<>();
+
+        LiveSection.classify(Arrays.asList(upload, live, upcoming, past, live), liveRow, upcomingRow, pastRow, new HashSet<>());
+
+        assertEquals(Arrays.asList(live), liveRow); // duplicates dropped
+        assertEquals(Arrays.asList(upcoming), upcomingRow);
+        assertEquals(Arrays.asList(past), pastRow);
     }
 
     @Test
