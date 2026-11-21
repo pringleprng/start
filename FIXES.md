@@ -33,6 +33,8 @@ fully qualified class name, so no import lines change.
 | 11 | [LIVE! sidebar section](#11-live-sidebar-section-live-and-past-streams-of-subscriptions) | 32.80s |
 | 12 | [Sidebar icons only + icon size](#12-sidebar-icons-only-mode-and-icon-size) | 32.80s |
 | 13 | [Content starts higher without the clock](#13-content-area-starts-higher-when-the-clock-is-hidden) | 32.80s |
+| 14 | [Cards per line instead of Video grid scale](#14-cards-per-line-instead-of-video-grid-scale) | 32.80s |
+| 15 | [Pinned channels show the channel icon](#15-pinned-channels-show-the-channel-icon) | 32.80s |
 
 ---
 
@@ -434,3 +436,60 @@ reads.
 
 **Drop it when:** upstream adapts the top spacing to the clock setting itself (check
 `lb_browse_rows_margin_top` in `smarttubetv/src/main/res/values/dimens.xml`).
+
+## 14. Cards per line instead of Video grid scale
+
+**Commit:** `[DumbTube] Cards per line instead of Video grid scale`
+
+**What it does:** SmartTube's *Video grid scale* (Settings › Main UI and Settings › UI scale) works out
+how many cards fit in a line at that scale, rounds down, then stretches the cards to fill the line
+(`GridFragmentHelper.getCardDimensPxInt()`). So the card size only changes when the count changes:
+0.8×, 0.9× and 1.0× all show 4 cards per line, 1.1× to 1.35× all show 3, and 1.4×/1.5× show 2. It
+also only applies after the process really ends (card sizes are cached until then), and the UI scale
+screen doesn't say to restart.
+
+The same place now shows **Cards per line (card size)**: 2 to 8, with 4 = SmartTube's default.
+Each number is a different card size, for rows and grids. The number becomes the grid scale that fits
+exactly that many cards (`MainUIData.getVideoGridScale()`), so every SmartTube card type (videos,
+shorts, channels) scales with it. If the number changed, the app restarts itself when the dialog closes.
+Before a number is picked, SmartTube's scale is used unchanged; the list then marks the count that
+scale gives.
+
+The math assumes SmartTube's fixed layout width (`MotherActivity.initDpi()`: 960dp / UI scale) and
+the 10 % side space of `GridFragmentHelper.getMaxColsNumFloatInt()`. `CardsPerLineTest` checks every
+choice against that math at 720p, 1080p and 4K with pixel rounding.
+
+**Files**
+- `common/.../prefs/MainUIData.java`: first line of `getVideoGridScale()` (1 hook)
+- `common/.../presenters/settings/MainUISettingsPresenter.java`, `UIScaleSettingsPresenter.java`: first
+  line of `appendVideoGridScale()` → `CardsPerLine.appendSettings(...)` (1 hook each)
+- new: `common/.../dumbtube/CardsPerLine.java`, test `CardsPerLineTest`
+
+**Drop it when:** upstream's grid scale changes the card size at every step, or upstream offers a
+cards-per-line setting. Check `getCardDimensPxInt()` in `GridFragmentHelper.java`. If upstream changes
+`initDpi()` (`DEFAULT_WIDTH`/`DEFAULT_DENSITY`) or the 10 % side space, update the constants in
+`CardsPerLine`.
+
+## 15. Pinned channels show the channel icon
+
+**Commit:** `[DumbTube] Pinned channels show the channel icon, not a video thumbnail`
+
+**What it does:** *Pin channel to sidebar* from a video's menu built the pinned item from the video,
+so the sidebar showed that video's thumbnail as the channel's icon. The channel avatar from the
+video's metadata (`MediaItemMetadata.getAuthorImageUrl()`, the one the player shows) is now used.
+
+Channels pinned before the fix are repaired once, in the background, about 10 s after the app starts.
+This only touches pins whose icon is an `i.ytimg.com/vi/<id>/` video thumbnail: one metadata request
+per pin, one at a time, applied only if the video belongs to that channel. The sidebar is then rebuilt
+(`BrowsePresenter.updateSections()`, the same call SmartTube makes after moving or renaming a pin), and
+the current section is kept. A pin whose video is gone keeps its thumbnail; it is tried again on the
+next start.
+
+**Files**
+- `common/.../dialogs/menu/BaseMenuPresenter.java`: `appendTogglePinVideoToSidebarButton()` →
+  `PinnedChannelIcons.useChannelIcon(video, metadata)` after `video.sync(metadata)` (1 hook)
+- `common/.../dumbtube/DumbTubeDefaults.java` starts the repair (no upstream hook)
+- new: `common/.../dumbtube/PinnedChannelIcons.java`, test `PinnedChannelIconsTest`
+
+**Drop it when:** pinning a channel from a video shows the channel avatar in upstream (check
+`createPinnedChannel()` in `BaseMenuPresenter.java`).
