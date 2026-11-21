@@ -18,6 +18,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.PlayerSetti
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.RemoteControlSettingsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.SearchSettingsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.settings.SubtitleSettingsPresenter;
+import com.liskovsoft.smartyoutubetv2.common.dumbtube.DumbTubeSettingsPresenter; // [DumbTube]
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem.VideoPreset;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
@@ -75,6 +76,8 @@ public class AppDataSourceManager {
             settingItems.add(new SettingsItem(
                     context.getString(R.string.settings_about), () -> AboutSimpleSettingsPresenter.instance(context).show(), R.drawable.settings_about));
         }
+
+        settingItems.add(0, DumbTubeSettingsPresenter.createSettingsItem(context)); // [DumbTube]
 
         return settingItems;
     }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DumbTube] Strings for DumbTube-only features (English only, not sent to Crowdin). -->
+<resources>
+    <string translatable="false" name="dumbtube_settings_title">DumbTube</string>
+</resources>
