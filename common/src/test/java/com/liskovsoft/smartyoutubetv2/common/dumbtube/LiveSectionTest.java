@@ -51,6 +51,17 @@ public class LiveSectionTest {
     }
 
     @Test
+    public void detectsUpcoming() {
+        assertTrue(LiveSection.isUpcomingStream(true, null, null, 0));
+        assertTrue(LiveSection.isUpcomingStream(false, "UPCOMING", null, 0));
+        assertTrue(LiveSection.isUpcomingStream(false, null, "Channel • Scheduled for 11/22/26, 8:00 PM", 0));
+        assertTrue(LiveSection.isUpcomingStream(false, null, "Channel • 52 waiting • Premieres 11/22/26", 0));
+        // Normal upload / finished premiere with a length
+        assertFalse(LiveSection.isUpcomingStream(false, "12:34", "Channel • 3K views • 2 days ago", 754_000));
+        assertFalse(LiveSection.isUpcomingStream(false, "10:00", "Channel • Premiered 3 days ago", 600_000));
+    }
+
+    @Test
     public void ignoresRegularUploads() {
         assertFalse(LiveSection.isPastStream("Some Channel • 12K views • 2 days ago", "2 days ago"));
         assertFalse(LiveSection.isPastStream("Premiered 3 days ago", null));
@@ -59,12 +70,14 @@ public class LiveSectionTest {
     }
 
     @Test
-    public void subscriptionsPageDropsLiveAndPastStreams() {
+    public void subscriptionsPageDropsAllStreams() {
         MediaItem upload = item("upload", false, "12:34", "Channel • 3K views • 2 days ago", 754_000);
         MediaItem live = item("live", true, "LIVE", "Channel • 1.2K watching", 0);
         MediaItem past = item("past", false, "2:13:45", "Channel • 12K views • Streamed 2 days ago", 8_025_000);
         MediaItem liveNoFlag = item("liveNoFlag", false, null, "Channel • 300 watching", 0);
-        List<MediaItem> page = new ArrayList<>(Arrays.asList(live, upload, past, liveNoFlag, null));
+        MediaItem upcoming = item("upcoming", false, "UPCOMING", "Channel • Scheduled for 11/22/26, 8:00 PM", 0);
+        MediaItem upcomingNoBadge = item("upcomingNoBadge", false, null, "Channel • Premieres 11/22/26", 0);
+        List<MediaItem> page = new ArrayList<>(Arrays.asList(live, upload, past, liveNoFlag, upcoming, upcomingNoBadge, null));
 
         LiveSection.removeStreams(page);
 
