@@ -20,6 +20,29 @@ public class LiveSectionTest {
     }
 
     @Test
+    public void detectsLiveNow() {
+        // YouTube's flag
+        assertTrue(LiveSection.isLiveNow(true, null, null, 0));
+        // Flag missing: "LIVE" thumbnail overlay
+        assertTrue(LiveSection.isLiveNow(false, "LIVE", "Some Channel • 1.2K watching", 0));
+        assertTrue(LiveSection.isLiveNow(false, " live ", null, 0));
+        // Flag and overlay missing: "... watching" on a video without a length
+        assertTrue(LiveSection.isLiveNow(false, null, "Some Channel • 1.2K watching", 0));
+    }
+
+    @Test
+    public void notLiveNow() {
+        // Finished stream: has a length and says "Streamed"
+        assertFalse(LiveSection.isLiveNow(false, "2:13:45", "Some Channel • 12K views • Streamed 2 days ago", 8_025_000));
+        // Regular upload
+        assertFalse(LiveSection.isLiveNow(false, "12:34", "Some Channel • 3K views • 2 days ago", 754_000));
+        // "watching" text but the video has a length (e.g. a finished premiere)
+        assertFalse(LiveSection.isLiveNow(false, "10:00", "Some Channel • 120 watching", 600_000));
+        // A title-like badge that merely contains "live"
+        assertFalse(LiveSection.isLiveNow(false, "LIVE AT WEMBLEY", null, 1_000));
+    }
+
+    @Test
     public void ignoresRegularUploads() {
         assertFalse(LiveSection.isPastStream("Some Channel • 12K views • 2 days ago", "2 days ago"));
         assertFalse(LiveSection.isPastStream("Premiered 3 days ago", null));

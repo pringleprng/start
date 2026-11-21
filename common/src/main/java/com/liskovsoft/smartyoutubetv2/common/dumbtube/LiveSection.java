@@ -11,6 +11,7 @@ import com.liskovsoft.sharedutils.rx.RxHelper;
 import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.BrowseSection;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
+import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -22,12 +23,16 @@ import io.reactivex.Observable;
 
 /**
  * [DumbTube] "LIVE!" sidebar section, built from the Subscriptions feed:<br/>
- * - row 1 "Live now": subscriptions that are live right now (YouTube's live flag)<br/>
+ * - row 1 "Live now": subscriptions that are live right now. YouTube's live flag, plus YouTube's own
+ *   "LIVE" overlay / "... watching" text as a fallback, because the flag depends on a tile style value
+ *   that YouTube changes from time to time ({@link #isLiveNow})<br/>
  * - row 2 "Past live streams": finished streams, newest to oldest (feed order). Scrolling to the end of
  *   the row loads older pages of the feed.<br/>
  * Past streams have no flag in YouTube's data; they are recognised by YouTube's "Streamed ... ago"
  * text in the video info line. English is the reliable one; a few other languages are matched on a
- * best-effort basis ({@link #STREAMED_MARKERS}).<br/><br/>
+ * best-effort basis ({@link #STREAMED_MARKERS}).<br/>
+ * SmartTube's "hide streams in Subscriptions" filter would drop the live items before we see them, so
+ * it is lifted while this section loads ({@link #withLiveStreamsVisible}).<br/><br/>
  * Upstream hooks: BrowsePresenter initSectionMapping()/initRowAndGridMapping()/continueGroup(),
  * SidebarService.initSections(). Enabled once in the sidebar by {@link DumbTubeDefaults}.
  */
@@ -54,6 +59,26 @@ public final class LiveSection {
             "配信済み",           // ja
             "스트리밍",            // ko
     };
+    /** Lower case, exact match. Thumbnail overlay text of a live video. */
+    static final String[] LIVE_BADGES = {
+            "live", "live now", "en direct", "en vivo", "ao vivo", "in diretta", "na żywo",
+            "в эфире", "прямой эфир", "наживо", "ライブ", "실시간"
+    };
+    /** Lower case. "1.2K watching" in the info line of a live video. */
+    static final String[] WATCHING_MARKERS = {
+            "watching",         // en
+            "zuschauer",        // de
+            "spectateurs",      // fr
+            "espectadores",     // es
+            "assistindo",       // pt
+            "spettatori",       // it
+            "kijkers",          // nl
+            "oglądających",     // pl
+            "смотрят",          // ru
+            "дивляться",        // uk
+            "視聴中",             // ja
+            "시청 중",            // ko
+    };
 
     private LiveSection() {
     }
@@ -76,7 +101,7 @@ public final class LiveSection {
         String liveTitle = context.getString(R.string.dumbtube_live_now);
         String pastTitle = context.getString(R.string.dumbtube_live_past);
 
-        return RxHelper.create(emitter -> {
+        return RxHelper.create(emitter -> withLiveStreamsVisible(() -> {
             ContentService service = YouTubeServiceManager.instance().getContentService();
             MediaGroup page = service.getSubscriptions();
             Set<String> seen = new HashSet<>();
@@ -111,7 +136,8 @@ public final class LiveSection {
                 emitter.onNext(rows);
             }
             emitter.onComplete();
-        });
+            return null;
+        }));
     }
 
     /**
@@ -124,7 +150,7 @@ public final class LiveSection {
 
         LiveGroup group = (LiveGroup) mediaGroup;
 
-        return RxHelper.fromCallable(() -> {
+        return RxHelper.fromCallable(() -> withLiveStreamsVisible(() -> {
             if (group.mCursor == null) {
                 return null; // end of the feed (or the live row)
             }
@@ -146,7 +172,32 @@ public final class LiveSection {
             LiveGroup more = new LiveGroup(group.mTitle, past, page);
             more.mSeen.addAll(seen);
             return more;
-        });
+        }));
+    }
+
+    private interface Loader<T> {
+        T load() throws Exception;
+    }
+
+    /**
+     * Runs the loader with SmartTube's "hide streams in Subscriptions" content filter switched off, so the
+     * live items reach us, then puts the user's setting back.
+     */
+    private static <T> T withLiveStreamsVisible(Loader<T> loader) throws Exception {
+        MediaServiceData data = MediaServiceData.instance();
+        boolean hidden = data != null && data.isContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS);
+
+        if (hidden) {
+            data.setContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS, false);
+        }
+
+        try {
+            return loader.load();
+        } finally {
+            if (hidden) {
+                data.setContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS, true);
+            }
+        }
     }
 
     // ---------- Classification ----------
@@ -161,7 +212,7 @@ public final class LiveSection {
                 continue;
             }
 
-            if (item.isLive()) {
+            if (isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())) {
                 if (live != null) {
                     live.add(item);
                 }
@@ -171,18 +222,39 @@ public final class LiveSection {
         }
     }
 
-    static boolean isPastStream(@Nullable CharSequence info, @Nullable String published) {
-        return containsMarker(info) || containsMarker(published);
+    /**
+     * Live right now: YouTube's flag, or the "LIVE" thumbnail overlay, or "... watching" on a video
+     * without a length (finished streams have a length and say "Streamed ...").
+     */
+    static boolean isLiveNow(boolean liveFlag, @Nullable String badge, @Nullable CharSequence info, long durationMs) {
+        if (liveFlag) {
+            return true;
+        }
+
+        if (badge != null) {
+            String lowerBadge = badge.trim().toLowerCase(Locale.ROOT);
+            for (String liveBadge : LIVE_BADGES) {
+                if (lowerBadge.equals(liveBadge)) {
+                    return true;
+                }
+            }
+        }
+
+        return durationMs <= 0 && containsAny(info, WATCHING_MARKERS) && !containsAny(info, STREAMED_MARKERS);
     }
 
-    private static boolean containsMarker(@Nullable CharSequence text) {
+    static boolean isPastStream(@Nullable CharSequence info, @Nullable String published) {
+        return containsAny(info, STREAMED_MARKERS) || containsAny(published, STREAMED_MARKERS);
+    }
+
+    private static boolean containsAny(@Nullable CharSequence text, String[] markers) {
         if (text == null || text.length() == 0) {
             return false;
         }
 
         String lower = text.toString().toLowerCase(Locale.ROOT);
 
-        for (String marker : STREAMED_MARKERS) {
+        for (String marker : markers) {
             if (lower.contains(marker)) {
                 return true;
             }
