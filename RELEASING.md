@@ -126,6 +126,12 @@ your backups. It never needs to be inside the repository folder.
    - on the TV: DumbTube › Settings › About › *Check for updates*, or wait for the automatic check
    - or from Termux: `bash install-dumbtube.sh` (see TERMUX.md)
 
+**Automatic releases:** after every successful *DumbTube Check* on the DumbTube branch, *DumbTube
+Release* also starts by itself. It only publishes when that commit's SmartTube version has no DumbTube
+release yet, i.e. right after a new SmartTube version was integrated (the daily scheduled task, see
+UPDATING.md). Otherwise it stops at its first job ("gate"). The branch name is in the workflow's
+`workflow_run` → `branches:`; change it there if you rename the branch.
+
 If the workflow fails:
 - *Missing repository secrets* / *secrets don't match*: re-check step 3; alias and passwords are
   case-sensitive.
