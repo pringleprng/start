@@ -45,4 +45,9 @@
     <!-- Player text brightness -->
     <string translatable="false" name="dumbtube_player_text_brightness">Player text brightness (title, times, descriptions)</string>
     <string translatable="false" name="dumbtube_player_text_same">Same as interface text</string>
+
+    <!-- LIVE! section -->
+    <string translatable="false" name="dumbtube_live_section">LIVE!</string>
+    <string translatable="false" name="dumbtube_live_now">Live now</string>
+    <string translatable="false" name="dumbtube_live_past">Past live streams</string>
 </resources>
