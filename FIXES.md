@@ -30,6 +30,8 @@ fully qualified class name, so no import lines change.
 | 8 | [Top bar icons: no circles, own brightness](#8-top-bar-icons-no-circle-backgrounds-own-brightness) | 32.80s |
 | 9 | [Clock hidden by default](#9-top-right-clock-hidden-by-default) | 32.80s |
 | 10 | [Card video length badge style](#10-card-video-length-badge-outlined-text-color-brightness) | 32.80s |
+| 11 | [LIVE! sidebar section](#11-live-sidebar-section-live-and-past-streams-of-subscriptions) | 32.80s |
+| 12 | [Sidebar icons only + icon size](#12-sidebar-icons-only-mode-and-icon-size) | 32.80s |
 
 ---
 
@@ -284,6 +286,8 @@ the top right of the player controls (`PlayerData` clock and global clock). It u
 settings, so you can turn them back on in Settings › Main UI / Player and they stay on. To add another
 "DumbTube default" later, add a new step with a new key in `DumbTubeDefaults`.
 
+`DumbTubeDefaults` also adds the LIVE! section to an existing sidebar once (see 11).
+
 **Files**
 - `common/.../misc/MotherActivity.java`: `onCreate()` → `DumbTubeDefaults.applyOnce(this)` (1 hook)
 - new: `common/.../dumbtube/DumbTubeDefaults.java`
@@ -313,3 +317,59 @@ by itself; use the settings.
 - new: `common/.../dumbtube/CardBadge.java`, test `common/src/test/.../dumbtube/CardBadgeTest.java`
 
 **Drop it when:** upstream offers badge styling options (`ComplexImageView`, `text_badge_image_view.xml`).
+
+## 11. LIVE! sidebar section: live and past streams of subscriptions
+
+**Commit:** `[DumbTube] LIVE! sidebar section: live and past streams of subscriptions`
+
+**What it does**
+- A new sidebar section **LIVE!** with its own icon (the Subscriptions stack with a broadcast symbol),
+  built from your Subscriptions feed:
+  - **Live now**: subscribed channels that are live right now (YouTube's live flag). This row shows
+    as soon as the first feed page is in.
+  - **Past live streams**: finished streams, newest to oldest (feed order). The first load reads up to
+    6 feed pages (about 30 streams). Scrolling to the end of the row loads older feed pages, so it
+    keeps going back through the whole feed.
+- Upcoming/scheduled streams and Shorts are left out.
+- It appears right after Subscriptions: from SidebarService's default list on fresh installs, and
+  added once by `DumbTubeDefaults` on existing installs. Hide or move it like any other section.
+- Section id `77`: below SidebarService's `RESERVED_ID` (100) and far from upstream's
+  `MediaGroup.TYPE_*` ids (0–22). If upstream ever uses 77, change `LiveSection.SECTION_ID`.
+
+**How past streams are found:** YouTube's data has no "was a live stream" flag for finished streams.
+They're recognised by the *"Streamed … ago"* text in the video's info line. English is reliable;
+German, French, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Ukrainian, Japanese and Korean
+are matched best-effort (`LiveSection.STREAMED_MARKERS`). If past streams are missing with another
+YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
+
+**Files**
+- `common/.../presenters/BrowsePresenter.java`: `initSectionMapping()`, `initRowAndGridMapping()`,
+  `continueGroup()` (1 hook line each)
+- `common/.../presenters/service/SidebarService.java`: `initSections()` (1 hook line after Subscriptions)
+- new: `common/.../dumbtube/LiveSection.java`, `drawable-nodpi/dumbtube_icon_live_subs.png`,
+  test `common/src/test/.../dumbtube/LiveSectionTest.java`
+- `common/.../dumbtube/DumbTubeDefaults.java` (one-time sidebar entry)
+
+**Drop it when:** upstream adds a subscriptions live/streams section or filter (look for a
+"live"/"streams" chip or tab in `BrowsePresenter` / `YouTubeContentService`).
+
+## 12. Sidebar: icons-only mode and icon size
+
+**Commit:** `[DumbTube] Sidebar: icons only mode and icon size`
+
+**What it does**
+- Settings › DumbTube › **Sidebar: icons only** (off by default) hides the section names. The sidebar
+  shrinks to fit the icons: its width is set at runtime on leanback's `browse_headers_root` /
+  `browse_headers`. The rows start right after it, via theme overlay
+  `ThemeOverlay.DumbTube.Sidebar.Compact.<size>` (`smarttubetv/.../values/dumbtube_sidebar.xml`),
+  which sets leanback's `browseRowsMarginStart`.
+- **Sidebar icon size**: 24 / 32 (SmartTube default) / 40 / 48 / 56 / 64 dp.
+- Both apply after an app restart; DumbTube shows a message when you leave its settings.
+
+**Files**
+- `smarttubetv/.../presenter/IconHeaderItemPresenter.java`: `onBindViewHolder()` →
+  `SidebarStyle.styleHeader(iconView, label)` (1 hook)
+- `common/.../misc/MotherActivity.java`: `onCreate()` → `SidebarStyle.applyTheme(this)` (1 hook)
+- new: `common/.../dumbtube/SidebarStyle.java`, `smarttubetv/src/main/res/values/dumbtube_sidebar.xml`
+
+**Drop it when:** upstream adds a compact/icon-only sidebar option (Settings › Main UI).
