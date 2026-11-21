@@ -2,4 +2,5 @@
 <!-- [DumbTube] View tag keys -->
 <resources>
     <item type="id" name="dumbtube_text_dimmer" />
+    <item type="id" name="dumbtube_oled_guard" />
 </resources>

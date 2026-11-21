@@ -202,14 +202,17 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     }
 
     public List<ColorScheme> getColorSchemes() {
+        if (com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.isAvailable(mContext)) return com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.withScheme(mContext, mColorSchemes); // [DumbTube]
         return mColorSchemes;
     }
 
     public ColorScheme getColorScheme() {
+        if (com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.isSelected(mContext)) return com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.getScheme(mContext); // [DumbTube]
         return mColorSchemes.get(mColorSchemeIndex);
     }
 
     public void setColorScheme(ColorScheme scheme) {
+        if (com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.onSchemeSelected(mContext, scheme)) return; // [DumbTube]
         mColorSchemeIndex = mColorSchemes.indexOf(scheme);
         persistState();
     }
