@@ -13,6 +13,7 @@ import androidx.annotation.NonNull;
 
 import com.google.android.exoplayer2.text.CaptionStyleCompat;
 import com.liskovsoft.smartyoutubetv2.common.R;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionCategory;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
@@ -27,19 +28,28 @@ import java.util.List;
  * Every activity window gets a pre-draw listener that re-tints each {@link TextView} with a wrapped
  * {@link ColorStateList} whose colors are scaled towards black (alpha kept, states kept). Colors that
  * the app sets later (e.g. focused card titles) are picked up on the next frame.<br/>
+ * The player window can have its own level ("same as interface text" by default), adjustable from the
+ * player's playback settings dialog.<br/>
  * Captions have their own brightness level, applied to the subtitle style.<br/><br/>
  * Upstream hooks: MotherActivity.onResume() -> {@link #attach(Activity)};
- * SubtitleManager.applyStyle()/applySystemStyle() -> {@link #dimCaptionStyle}.<br/>
+ * SubtitleManager.applyStyle()/applySystemStyle() -> {@link #dimCaptionStyle};
+ * HQDialogController.onHighQualityClicked() -> {@link #createPlayerTextCategory}.<br/>
  * Not covered: toasts, the tooltip popup, colored spans inside text (e.g. some badges).
  */
 public final class TextDimmer {
     private static final String KEY_TEXT_LEVEL = "text_brightness";
     private static final String KEY_CAPTION_LEVEL = "caption_brightness";
+    private static final String KEY_PLAYER_TEXT_LEVEL = "player_text_brightness";
+    /** Player text level: follow the interface text level. */
+    private static final int SAME_AS_INTERFACE = 0;
+    private static final int PLAYER_TEXT_CATEGORY_ID = 0x0D7B0001;
+    private static final String PLAYER_ACTIVITY_SUFFIX = ".PlaybackActivity";
     public static final int[] LEVELS = {100, 90, 80, 70, 60, 50, 40, 30};
     private static final int MIN_LEVEL = 30;
     // Weak: a dimmer is owned by its window's decor view (tag + ViewTreeObserver)
     private static final List<WeakReference<WindowDimmer>> sWindows = new ArrayList<>();
     private static float sTextFactor = -1;
+    private static float sPlayerTextFactor = -1;
     private static float sCaptionFactor = -1;
     private static boolean sListenerAdded;
 
@@ -67,6 +77,39 @@ public final class TextDimmer {
         reload(context);
     }
 
+    /**
+     * @return {@link #SAME_AS_INTERFACE} (0) or a level
+     */
+    public static int getPlayerTextLevel(Context context) {
+        int level = DumbTubePrefs.instance(context).getInt(KEY_PLAYER_TEXT_LEVEL, SAME_AS_INTERFACE);
+        return level == SAME_AS_INTERFACE ? SAME_AS_INTERFACE : clamp(level);
+    }
+
+    public static void setPlayerTextLevel(Context context, int level) {
+        DumbTubePrefs.instance(context).setInt(KEY_PLAYER_TEXT_LEVEL, level == SAME_AS_INTERFACE ? SAME_AS_INTERFACE : clamp(level));
+        reload(context);
+        refreshAll(); // the player window is visible behind the dialog: updates live
+    }
+
+    private static List<OptionItem> createPlayerTextOptions(Context context) {
+        List<OptionItem> options = new ArrayList<>();
+        int current = getPlayerTextLevel(context);
+        options.add(UiOptionItem.from(context.getString(R.string.dumbtube_player_text_same),
+                option -> setPlayerTextLevel(context, SAME_AS_INTERFACE), current == SAME_AS_INTERFACE));
+        for (int level : LEVELS) {
+            options.add(UiOptionItem.from(level + "%", option -> setPlayerTextLevel(context, level), level == current));
+        }
+        return options;
+    }
+
+    /**
+     * Hook: "Player text brightness" in the player's playback settings dialog.
+     */
+    public static OptionCategory createPlayerTextCategory(Context context) {
+        return OptionCategory.from(PLAYER_TEXT_CATEGORY_ID, OptionCategory.TYPE_RADIO_LIST,
+                context.getString(R.string.dumbtube_player_text_brightness), createPlayerTextOptions(context));
+    }
+
     public static void appendSettings(Context context, AppDialogPresenter dialog) {
         List<OptionItem> textOptions = new ArrayList<>();
         int textLevel = getTextLevel(context);
@@ -74,6 +117,8 @@ public final class TextDimmer {
             textOptions.add(UiOptionItem.from(level + "%", option -> setTextLevel(context, level), level == textLevel));
         }
         dialog.appendRadioCategory(context.getString(R.string.dumbtube_text_brightness), textOptions);
+
+        dialog.appendRadioCategory(context.getString(R.string.dumbtube_player_text_brightness), createPlayerTextOptions(context));
 
         List<OptionItem> captionOptions = new ArrayList<>();
         int captionLevel = getCaptionLevel(context);
@@ -100,7 +145,7 @@ public final class TextDimmer {
         WindowDimmer dimmer = tag instanceof WindowDimmer ? (WindowDimmer) tag : null;
 
         if (dimmer == null) {
-            dimmer = new WindowDimmer(decor);
+            dimmer = new WindowDimmer(decor, activity.getClass().getName().endsWith(PLAYER_ACTIVITY_SUFFIX));
             decor.setTag(R.id.dumbtube_text_dimmer, dimmer);
             decor.getViewTreeObserver().addOnPreDrawListener(dimmer);
             sWindows.add(new WeakReference<>(dimmer));
@@ -133,7 +178,7 @@ public final class TextDimmer {
     }
 
     private static void ensureLoaded(Context context) {
-        if (sTextFactor < 0 || sCaptionFactor < 0) {
+        if (sTextFactor < 0 || sCaptionFactor < 0 || sPlayerTextFactor < 0) {
             reload(context);
         }
 
@@ -149,6 +194,8 @@ public final class TextDimmer {
 
     private static void reload(Context context) {
         sTextFactor = getTextLevel(context) / 100f * getThemeTextCap(context);
+        int playerLevel = getPlayerTextLevel(context);
+        sPlayerTextFactor = playerLevel == SAME_AS_INTERFACE ? sTextFactor : playerLevel / 100f * getThemeTextCap(context);
         sCaptionFactor = getCaptionLevel(context) / 100f;
     }
 
@@ -181,10 +228,16 @@ public final class TextDimmer {
 
     private static final class WindowDimmer implements ViewTreeObserver.OnPreDrawListener {
         private final View mDecor;
+        private final boolean mIsPlayer;
         private boolean mHasDimmed;
 
-        WindowDimmer(View decor) {
+        WindowDimmer(View decor, boolean isPlayer) {
             mDecor = decor;
+            mIsPlayer = isPlayer;
+        }
+
+        private float factor() {
+            return mIsPlayer ? sPlayerTextFactor : sTextFactor;
         }
 
         void refresh() {
@@ -194,7 +247,7 @@ public final class TextDimmer {
 
         @Override
         public boolean onPreDraw() {
-            if (sTextFactor < 0.999f || mHasDimmed) {
+            if (factor() < 0.999f || mHasDimmed) {
                 walk(mDecor);
             }
             return true;
@@ -212,7 +265,7 @@ public final class TextDimmer {
         }
 
         private void apply(TextView view) {
-            if (applyTo(view, sTextFactor)) {
+            if (applyTo(view, factor())) {
                 mHasDimmed = true;
             }
         }

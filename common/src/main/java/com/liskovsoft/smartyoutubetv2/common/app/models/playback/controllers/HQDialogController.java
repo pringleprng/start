@@ -55,6 +55,7 @@ public class HQDialogController extends BasePlayerController {
         addAudioDelayCategory();
         addPitchEffectCategory();
         addSleepTimerCategory();
+        addCategoryInt(com.liskovsoft.smartyoutubetv2.common.dumbtube.TextDimmer.createPlayerTextCategory(getContext())); // [DumbTube]
         //addBackgroundPlaybackCategory();
 
         appendOptions(mCategoriesInt);
