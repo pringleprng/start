@@ -957,6 +957,7 @@ public final class Video {
      * The section playlist intended (as a backup replacement) for cases when regular playlist not available
      */
     public boolean isSectionPlaylistEnabled(Context context) {
+        if (com.liskovsoft.smartyoutubetv2.common.dumbtube.SubscriptionsAutoplay.isFeedOrderFor(context, this)) return true; // [DumbTube]
         return PlayerTweaksData.instance(context).isSectionPlaylistEnabled() && !belongsToSuggestions() && !belongsToPlaybackQueue()
                 && (!checkAllVideosHasPlaylist() || nextMediaItem == null || !isMix()) // skip hidden playlists (music videos usually)
                 && (!isRemote || remotePlaylistId == null);

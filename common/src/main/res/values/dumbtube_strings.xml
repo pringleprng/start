@@ -17,4 +17,7 @@
     <string translatable="false" name="dumbtube_captions_set_default">Use current captions as default for other channels</string>
     <string translatable="false" name="dumbtube_captions_forget_all">Forget saved captions of all channels (%d saved)</string>
     <string translatable="false" name="dumbtube_captions_forgotten_all">Per-channel captions cleared</string>
+
+    <!-- Subscriptions feed autoplay order -->
+    <string translatable="false" name="dumbtube_subs_autoplay">DumbTube: Subscriptions autoplay plays the next video of the feed (not a recommendation)</string>
 </resources>
