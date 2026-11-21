@@ -255,7 +255,8 @@ untouched. Switch them off in the Actions tab (see RELEASING.md).
 
 ## 8. Top bar icons: no circle backgrounds, own brightness
 
-**Commit:** `[DumbTube] Top bar icons: no circle backgrounds, own brightness`
+**Commits:** `[DumbTube] Top bar icons: no circle backgrounds, own brightness`,
+`[DumbTube] Search icon lined up with the sidebar icons`
 
 **What it does**
 - Round icon buttons ("orbs") are shown without their colored circle. That covers search in the top
@@ -265,6 +266,9 @@ untouched. Switch them off in the Actions tab (see RELEASING.md).
 - **Search and top bar icon brightness**: 100–30 %, separate from text brightness. The focused icon
   uses this level, the others 60 % of it. Together with leanback's zoom, that marks focus now that
   the circle is gone. Implemented as image alpha, which equals brightness on a black bar.
+- Without the circle, the **search icon is lined up with the sidebar icons**. The row of title buttons
+  is shifted so the search icon's center matches the sidebar icons' center: `browsePaddingStart` plus
+  half the *Sidebar icon size*. Measured at runtime.
 - Orbs are found at runtime by their `search_orb` + `icon` child views. The `common` module doesn't
   depend on leanback, so it can't check their class.
 
@@ -401,19 +405,28 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 
 ## 13. Content area starts higher when the clock is hidden
 
-**Commit:** `[DumbTube] Content area starts higher when the clock is hidden`
+**Commits:** `[DumbTube] Content area starts higher when the clock is hidden`,
+`[DumbTube] Content top spacing: 76dp default, adjustable`
 
 **What it does:** when the top-right clock + date are hidden (Settings › Main UI; hidden by default in
-DumbTube, see 9), the rows and grids of every browse screen start at **90dp** instead of SmartTube's
-130dp. That covers Home, Subscriptions, LIVE!, channels and the rest. The empty band at the top is
-gone, also while scrolling, where the selected row keeps that offset. 90dp stays just below the search
-icon (27dp padding + 52dp orb with 1.2× focus zoom ≈ 84dp). Change the value in
-`smarttubetv/src/main/res/values/dumbtube_layout.xml`. Turning the clock back on restores SmartTube's
-spacing from the next screen / app start.
+DumbTube, see 9), the rows and grids of every browse screen start higher. That covers Home,
+Subscriptions, LIVE!, channels and the rest. The title bar with the search icon moves up with them, so
+the empty band at the top is gone, also while scrolling, where the selected row keeps that offset.
+Settings › DumbTube › **Top spacing of the content**:
 
-Theme overlay `ThemeOverlay.DumbTube.Content.NoClock` sets leanback's `browseRowsMarginTop`, which both
-the rows alignment (`BrowseSupportFragment`) and the grid top padding
-(`Widget.Leanback.GridItems.VerticalGridView`) read.
+| Step | Content starts at | Title bar padding (search icon) |
+|------|-------------------|---------------------------------|
+| Tight | 70dp | 12dp (icon bottom ≈ 69dp when focused) |
+| Compact (default) | 76dp | 16dp (≈ 73dp) |
+| Medium | 90dp | 27dp, SmartTube's (≈ 84dp) |
+| SmartTube | 130dp | 27dp (no overlay) |
+
+Turning the clock back on restores SmartTube's spacing. Changes apply after a restart.
+
+Theme overlays `ThemeOverlay.DumbTube.Content.Top.<dp>` (`dumbtube_layout.xml`) set leanback's
+`browseRowsMarginTop`, which both the rows alignment (`BrowseSupportFragment`) and the grid top padding
+(`Widget.Leanback.GridItems.VerticalGridView`) read, and `browsePaddingTop`, which only the title bar
+reads.
 
 **Files**
 - `common/.../misc/MotherActivity.java`: `onCreate()` → `ContentTop.applyTheme(this)` (1 hook)
