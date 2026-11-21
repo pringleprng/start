@@ -29,4 +29,8 @@
     <string translatable="false" name="dumbtube_theme_oled_neon">OLED - DumbTube</string>
     <string translatable="false" name="dumbtube_oled_focus_color">OLED theme: focus color (focused cards and tiles)</string>
     <string translatable="false" name="dumbtube_oled_accent_color">OLED theme: accent color (seek bar, player icons, switches, progress)</string>
+
+    <!-- Top bar / round icons -->
+    <string translatable="false" name="dumbtube_icons_no_background">Icons without circle background (search and top bar icons)</string>
+    <string translatable="false" name="dumbtube_icons_brightness">Search and top bar icon brightness</string>
 </resources>

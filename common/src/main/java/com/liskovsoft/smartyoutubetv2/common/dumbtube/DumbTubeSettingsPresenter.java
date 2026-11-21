@@ -34,6 +34,7 @@ public class DumbTubeSettingsPresenter extends BasePresenter<Void> {
         SubscriptionsAutoplay.appendSettings(context, dialog);
         TextDimmer.appendSettings(context, dialog);
         OledNeonTheme.appendSettings(context, dialog);
+        TopBarIcons.appendSettings(context, dialog);
 
         dialog.showDialog(context.getString(R.string.dumbtube_settings_title), () -> OledNeonTheme.onSettingsClosed(context));
     }
