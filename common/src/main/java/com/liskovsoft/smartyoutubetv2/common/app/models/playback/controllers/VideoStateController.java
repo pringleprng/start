@@ -476,6 +476,8 @@ public class VideoStateController extends BasePlayerController {
                     ? getPlayerData().getLastSubtitleFormat() : FormatItem.SUBTITLE_NONE;
         }
 
+        result = com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).resolve(getVideo(), result); // [DumbTube]
+
         getPlayer().setFormat(result);
     }
 
