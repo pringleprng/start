@@ -98,6 +98,7 @@ public class ComplexImageView extends RelativeLayout {
         }
         if (text != null) {
             mBadgeText.setText(text);
+            com.liskovsoft.smartyoutubetv2.common.dumbtube.CardBadge.restyle(mBadgeText); // [DumbTube]
             mBadgeText.setVisibility(View.VISIBLE);
         } else {
             mBadgeText.setVisibility(View.INVISIBLE);
@@ -110,6 +111,7 @@ public class ComplexImageView extends RelativeLayout {
         }
 
         mBadgeText.setBackgroundColor(color);
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.CardBadge.restyle(mBadgeText); // [DumbTube]
     }
 
     /**
