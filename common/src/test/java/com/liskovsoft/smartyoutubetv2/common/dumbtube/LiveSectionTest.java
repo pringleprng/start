@@ -59,15 +59,16 @@ public class LiveSectionTest {
     }
 
     @Test
-    public void subscriptionsPageDropsOnlyPastStreams() {
+    public void subscriptionsPageDropsLiveAndPastStreams() {
         MediaItem upload = item("upload", false, "12:34", "Channel • 3K views • 2 days ago", 754_000);
         MediaItem live = item("live", true, "LIVE", "Channel • 1.2K watching", 0);
         MediaItem past = item("past", false, "2:13:45", "Channel • 12K views • Streamed 2 days ago", 8_025_000);
-        List<MediaItem> page = new ArrayList<>(Arrays.asList(live, upload, past, null));
+        MediaItem liveNoFlag = item("liveNoFlag", false, null, "Channel • 300 watching", 0);
+        List<MediaItem> page = new ArrayList<>(Arrays.asList(live, upload, past, liveNoFlag, null));
 
-        LiveSection.removePastStreams(page);
+        LiveSection.removeStreams(page);
 
-        assertEquals(Arrays.asList(live, upload, null), page);
+        assertEquals(Arrays.asList(upload, null), page);
     }
 
     @Test
@@ -75,7 +76,7 @@ public class LiveSectionTest {
         MediaItem past = item("past", false, "2:13:45", "Channel • Streamed 2 days ago", 8_025_000);
         List<MediaItem> page = Arrays.asList(past); // fixed-size: remove() not supported
 
-        LiveSection.removePastStreams(page);
+        LiveSection.removeStreams(page);
 
         assertEquals(1, page.size());
     }

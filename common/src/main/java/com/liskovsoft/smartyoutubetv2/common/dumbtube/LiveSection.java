@@ -36,8 +36,8 @@ import io.reactivex.Observable;
  * best-effort basis ({@link #STREAMED_MARKERS}).<br/>
  * SmartTube's "hide streams in Subscriptions" filter would drop the live items before we see them, so
  * it is lifted while this section loads ({@link #withLiveStreamsVisible}).<br/>
- * Optionally (default on) the normal Subscriptions page drops past live streams, since they are here
- * ({@link #hidePastStreams}).<br/><br/>
+ * Optionally (default on) the normal Subscriptions page drops all streams, live and finished, since
+ * they are here ({@link #hideStreams}). This section itself always shows them.<br/><br/>
  * Upstream hooks: BrowsePresenter initSectionMapping()/initRowAndGridMapping()/continueGroup(),
  * SidebarService.initSections(). Enabled once in the sidebar by {@link DumbTubeDefaults}.
  */
@@ -49,7 +49,7 @@ public final class LiveSection {
     private static final int MORE_MAX_PAGES = 12;
     private static final int MORE_TARGET = 20;
     private static final String NEXT_KEY_MARKER = "dumbtube_live_more";
-    private static final String KEY_HIDE_PAST_IN_SUBSCRIPTIONS = "subs_hide_past_streams";
+    private static final String KEY_HIDE_STREAMS_IN_SUBSCRIPTIONS = "subs_hide_streams";
     /** Lower case. "Streamed 2 days ago" in YouTube's UI languages (English is the tested one). */
     static final String[] STREAMED_MARKERS = {
             "streamed",         // en
@@ -91,24 +91,24 @@ public final class LiveSection {
 
     // ---------- Settings ----------
 
-    public static boolean isHidePastInSubscriptions(Context context) {
-        return DumbTubePrefs.instance(context).getBoolean(KEY_HIDE_PAST_IN_SUBSCRIPTIONS, true);
+    public static boolean isHideStreamsInSubscriptions(Context context) {
+        return DumbTubePrefs.instance(context).getBoolean(KEY_HIDE_STREAMS_IN_SUBSCRIPTIONS, true);
     }
 
     public static void appendSettings(Context context, AppDialogPresenter dialog) {
-        dialog.appendSingleSwitch(UiOptionItem.from(context.getString(R.string.dumbtube_subs_hide_past_streams),
-                option -> DumbTubePrefs.instance(context).setBoolean(KEY_HIDE_PAST_IN_SUBSCRIPTIONS, option.isSelected()),
-                isHidePastInSubscriptions(context)));
+        dialog.appendSingleSwitch(UiOptionItem.from(context.getString(R.string.dumbtube_subs_hide_streams),
+                option -> DumbTubePrefs.instance(context).setBoolean(KEY_HIDE_STREAMS_IN_SUBSCRIPTIONS, option.isSelected()),
+                isHideStreamsInSubscriptions(context)));
     }
 
     // ---------- Hooks ----------
 
     /**
-     * Hook (BrowsePresenter.initRowAndGridMapping): the Subscriptions page without past live streams.
+     * Hook (BrowsePresenter.initRowAndGridMapping): the Subscriptions page without live and finished streams.
      * Items are removed in place (like SmartTube's own Shorts filter), so the group keeps its type and
      * its continuation still works.
      */
-    public static Observable<MediaGroup> hidePastStreams(Context context, Observable<MediaGroup> subscriptions) {
+    public static Observable<MediaGroup> hideStreams(Context context, Observable<MediaGroup> subscriptions) {
         if (subscriptions == null || context == null) {
             return subscriptions;
         }
@@ -116,7 +116,7 @@ public final class LiveSection {
         Context appContext = context.getApplicationContext();
 
         return subscriptions.map(group -> {
-            removePastStreams(appContext, group);
+            removeStreams(appContext, group);
             return group;
         });
     }
@@ -185,7 +185,7 @@ public final class LiveSection {
             // Next pages of the normal Subscriptions page
             Context appContext = context.getApplicationContext();
             return upstream.map(group -> {
-                removePastStreams(appContext, group);
+                removeStreams(appContext, group);
                 return group;
             });
         }
@@ -248,15 +248,18 @@ public final class LiveSection {
 
     // ---------- Classification ----------
 
-    static void removePastStreams(Context context, @Nullable MediaGroup group) {
-        if (group == null || !isHidePastInSubscriptions(context)) {
+    static void removeStreams(Context context, @Nullable MediaGroup group) {
+        if (group == null || !isHideStreamsInSubscriptions(context)) {
             return;
         }
 
-        removePastStreams(group.getMediaItems());
+        removeStreams(group.getMediaItems());
     }
 
-    static void removePastStreams(@Nullable List<MediaItem> items) {
+    /**
+     * Removes live and finished streams. Normal uploads and upcoming streams stay.
+     */
+    static void removeStreams(@Nullable List<MediaItem> items) {
         if (items == null) {
             return;
         }
@@ -265,8 +268,8 @@ public final class LiveSection {
             for (Iterator<MediaItem> iterator = items.iterator(); iterator.hasNext(); ) {
                 MediaItem item = iterator.next();
                 if (item != null
-                        && !isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())
-                        && isPastStream(item.getSecondTitle(), item.getProductionDate())) {
+                        && (isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())
+                            || isPastStream(item.getSecondTitle(), item.getProductionDate()))) {
                     iterator.remove();
                 }
             }
