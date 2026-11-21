@@ -157,6 +157,7 @@ public class SubtitleManager implements TextOutput, OnDataChange {
                         backgroundColor, Color.TRANSPARENT,
                         subtitleStyle.captionStyle,
                         outlineColor, Typeface.DEFAULT_BOLD);
+        style = com.liskovsoft.smartyoutubetv2.common.dumbtube.TextDimmer.dimCaptionStyle(mContext, style); // [DumbTube]
         mSubtitleView.setStyle(style);
 
         float textSize = getTextSizePx();
@@ -176,6 +177,7 @@ public class SubtitleManager implements TextOutput, OnDataChange {
                             userStyle.backgroundColor, VERSION.SDK_INT >= 21 ? userStyle.windowColor : Color.TRANSPARENT,
                             userStyle.edgeType,
                             userStyle.edgeColor, userStyle.getTypeface());
+            style = com.liskovsoft.smartyoutubetv2.common.dumbtube.TextDimmer.dimCaptionStyle(mContext, style); // [DumbTube]
             mSubtitleView.setStyle(style);
 
             float textSizePx = getTextSizePx();
