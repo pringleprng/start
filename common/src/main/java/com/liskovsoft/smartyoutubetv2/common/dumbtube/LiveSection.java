@@ -36,8 +36,9 @@ import io.reactivex.Observable;
  * best-effort basis ({@link #STREAMED_MARKERS}).<br/>
  * SmartTube's "hide streams in Subscriptions" filter would drop the live items before we see them, so
  * it is lifted while this section loads ({@link #withLiveStreamsVisible}).<br/>
- * Optionally (default on) the normal Subscriptions page drops all streams, live and finished, since
- * they are here ({@link #hideStreams}). This section itself always shows them.<br/><br/>
+ * Optionally (default on) the normal Subscriptions page drops all streams: live and finished ones
+ * (they are here) and upcoming/scheduled ones ({@link #hideStreams}). This section itself always shows
+ * the live and finished ones.<br/><br/>
  * Upstream hooks: BrowsePresenter initSectionMapping()/initRowAndGridMapping()/continueGroup(),
  * SidebarService.initSections(). Enabled once in the sidebar by {@link DumbTubeDefaults}.
  */
@@ -70,6 +71,10 @@ public final class LiveSection {
             "live", "live now", "en direct", "en vivo", "ao vivo", "in diretta", "na żywo",
             "в эфире", "прямой эфир", "наживо", "ライブ", "실시간"
     };
+    /** Lower case, exact match. Thumbnail overlay text of a scheduled stream / premiere. */
+    static final String[] UPCOMING_BADGES = {"upcoming", "premiere", "scheduled"};
+    /** Lower case. "Scheduled for 11/22/26, 8:00 PM" / "Premieres 11/22/26" in the info line. */
+    static final String[] UPCOMING_MARKERS = {"scheduled for", "premieres", "waiting"};
     /** Lower case. "1.2K watching" in the info line of a live video. */
     static final String[] WATCHING_MARKERS = {
             "watching",         // en
@@ -104,7 +109,8 @@ public final class LiveSection {
     // ---------- Hooks ----------
 
     /**
-     * Hook (BrowsePresenter.initRowAndGridMapping): the Subscriptions page without live and finished streams.
+     * Hook (BrowsePresenter.initRowAndGridMapping): the Subscriptions page without live, upcoming and
+     * finished streams.
      * Items are removed in place (like SmartTube's own Shorts filter), so the group keeps its type and
      * its continuation still works.
      */
@@ -257,7 +263,7 @@ public final class LiveSection {
     }
 
     /**
-     * Removes live and finished streams. Normal uploads and upcoming streams stay.
+     * Removes live, upcoming (scheduled) and finished streams. Normal uploads stay.
      */
     static void removeStreams(@Nullable List<MediaItem> items) {
         if (items == null) {
@@ -269,6 +275,7 @@ public final class LiveSection {
                 MediaItem item = iterator.next();
                 if (item != null
                         && (isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())
+                            || isUpcomingStream(item.isUpcoming(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())
                             || isPastStream(item.getSecondTitle(), item.getProductionDate()))) {
                     iterator.remove();
                 }
@@ -284,7 +291,8 @@ public final class LiveSection {
         }
 
         for (MediaItem item : page.getMediaItems()) {
-            if (item == null || item.getVideoId() == null || item.isUpcoming() || item.isShorts() || !seen.add(item.getVideoId())) {
+            if (item == null || item.getVideoId() == null || item.isShorts() || !seen.add(item.getVideoId())
+                    || isUpcomingStream(item.isUpcoming(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())) {
                 continue;
             }
 
@@ -317,6 +325,27 @@ public final class LiveSection {
         }
 
         return durationMs <= 0 && containsAny(info, WATCHING_MARKERS) && !containsAny(info, STREAMED_MARKERS);
+    }
+
+    /**
+     * Scheduled stream or premiere: YouTube's flag, or an "UPCOMING" overlay, or "Scheduled for ..." /
+     * "Premieres ..." / "... waiting" on a video without a length.
+     */
+    static boolean isUpcomingStream(boolean upcomingFlag, @Nullable String badge, @Nullable CharSequence info, long durationMs) {
+        if (upcomingFlag) {
+            return true;
+        }
+
+        if (badge != null) {
+            String lowerBadge = badge.trim().toLowerCase(Locale.ROOT);
+            for (String upcomingBadge : UPCOMING_BADGES) {
+                if (lowerBadge.equals(upcomingBadge)) {
+                    return true;
+                }
+            }
+        }
+
+        return durationMs <= 0 && containsAny(info, UPCOMING_MARKERS);
     }
 
     static boolean isPastStream(@Nullable CharSequence info, @Nullable String published) {
