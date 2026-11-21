@@ -387,7 +387,8 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 ## 12. Sidebar: icons-only mode and icon size
 
 **Commits:** `[DumbTube] Sidebar: icons only mode and icon size`,
-`[DumbTube] Sidebar: round pictures for pinned channels and playlists`
+`[DumbTube] Sidebar: round pictures for pinned channels and playlists`,
+`[DumbTube] Sidebar: focused icon zooms in place`
 
 **What it does**
 - Settings › DumbTube › **Sidebar: icons only** (off by default) hides the section names. The sidebar
@@ -399,6 +400,10 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 - **Round pictures**: pinned channels and playlists, which show a picture instead of a drawn icon, are
   clipped to a circle. The picture is center-cropped to fill it, like YouTube's channel icons; SmartTube
   shows a square. Drawn icons (Home, Subscriptions, ...) are unchanged. Always on, Android 5+.
+- **Focus zoom from the icon's center**: leanback zooms the focused item 1.2× around a pivot on the
+  item's left edge (`HeadersSupportFragment.sLayoutChangeListener`, set again on every layout), so the
+  icon grew and moved right. An extra layout listener on the zoomed item wrapper runs after leanback's
+  and moves the pivot to the icon's center. The zoom is the same; the icon stays in place.
 - Icons only and icon size apply after an app restart; DumbTube shows a message when you leave its settings.
 
 **Files**
