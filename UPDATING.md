@@ -24,7 +24,10 @@ stay manual (Actions → DumbTube Release → Run workflow).
 If anything fails, it pushes its attempt to `dumbtube-update-<new tag>` instead, leaves the DumbTube
 branch alone, and reports what broke. It never drops a DumbTube change: features that upstream may now
 cover are listed in its report for you to decide. Manage the task in the Claude app (scheduled tasks).
-The release step needs the two signing secrets from RELEASING.md.
+
+Before this can release anything: add the two signing secrets (RELEASING.md §3) and make the first
+release by hand (Actions → DumbTube Release → Run workflow, *revision* `15` or higher than the dtN on
+your TV). Automatic releases only follow an existing one.
 
 ---
 
