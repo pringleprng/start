@@ -29,16 +29,16 @@ import io.reactivex.Observable;
  * - row 1 "Live now": subscriptions that are live right now. YouTube's live flag, plus YouTube's own
  *   "LIVE" overlay / "... watching" text as a fallback, because the flag depends on a tile style value
  *   that YouTube changes from time to time ({@link #isLiveNow})<br/>
- * - row 2 "Past live streams": finished streams, newest to oldest (feed order). Scrolling to the end of
+ * - row 2 "Upcoming": scheduled streams and premieres found in the loaded part of the feed<br/>
+ * - row 3 "Past live streams": finished streams, newest to oldest (feed order). Scrolling to the end of
  *   the row loads older pages of the feed.<br/>
  * Past streams have no flag in YouTube's data; they are recognised by YouTube's "Streamed ... ago"
  * text in the video info line. English is the reliable one; a few other languages are matched on a
  * best-effort basis ({@link #STREAMED_MARKERS}).<br/>
- * SmartTube's "hide streams in Subscriptions" filter would drop the live items before we see them, so
- * it is lifted while this section loads ({@link #withLiveStreamsVisible}).<br/>
+ * SmartTube's "hide streams / upcoming in Subscriptions" filters would drop items before we see them,
+ * so they are lifted while this section loads ({@link #withLiveStreamsVisible}).<br/>
  * Optionally (default on) the normal Subscriptions page drops all streams: live and finished ones
- * (they are here) and upcoming/scheduled ones ({@link #hideStreams}). This section itself always shows
- * the live and finished ones.<br/><br/>
+ * and upcoming ones, since they are all here ({@link #hideStreams}).<br/><br/>
  * Upstream hooks: BrowsePresenter initSectionMapping()/initRowAndGridMapping()/continueGroup(),
  * SidebarService.initSections(). Enabled once in the sidebar by {@link DumbTubeDefaults}.
  */
@@ -141,6 +141,7 @@ public final class LiveSection {
      */
     public static Observable<List<MediaGroup>> rowsObserve(Context context) {
         String liveTitle = context.getString(R.string.dumbtube_live_now);
+        String upcomingTitle = context.getString(R.string.dumbtube_live_upcoming);
         String pastTitle = context.getString(R.string.dumbtube_live_past);
 
         return RxHelper.create(emitter -> withLiveStreamsVisible(() -> {
@@ -148,9 +149,10 @@ public final class LiveSection {
             MediaGroup page = service.getSubscriptions();
             Set<String> seen = new HashSet<>();
             List<MediaItem> live = new ArrayList<>();
+            List<MediaItem> upcoming = new ArrayList<>();
             List<MediaItem> past = new ArrayList<>();
 
-            collect(page, live, past, seen);
+            collect(page, live, upcoming, past, seen);
 
             // Live streams sit at the top of the feed: show them right away
             boolean liveShown = !live.isEmpty();
@@ -164,12 +166,15 @@ public final class LiveSection {
             while (page != null && past.size() < FIRST_LOAD_TARGET && pages < FIRST_LOAD_MAX_PAGES) {
                 page = service.continueGroup(page);
                 pages++;
-                collect(page, liveShown ? null : live, past, seen);
+                collect(page, liveShown ? null : live, upcoming, past, seen);
             }
 
             List<MediaGroup> rows = new ArrayList<>();
             if (!liveShown && !live.isEmpty()) {
                 rows.add(new LiveGroup(liveTitle, live, null));
+            }
+            if (!upcoming.isEmpty()) {
+                rows.add(new LiveGroup(upcomingTitle, upcoming, null));
             }
             if (!past.isEmpty()) {
                 rows.add(new LiveGroup(pastTitle, past, page));
@@ -214,7 +219,7 @@ public final class LiveSection {
 
             for (int pages = 0; page != null && past.size() < MORE_TARGET && pages < MORE_MAX_PAGES; pages++) {
                 page = service.continueGroup(page);
-                collect(page, null, past, seen);
+                collect(page, null, null, past, seen);
             }
 
             if (past.isEmpty()) {
@@ -232,22 +237,28 @@ public final class LiveSection {
     }
 
     /**
-     * Runs the loader with SmartTube's "hide streams in Subscriptions" content filter switched off, so the
-     * live items reach us, then puts the user's setting back.
+     * Runs the loader with SmartTube's "hide streams / upcoming in Subscriptions" content filters switched
+     * off, so live and upcoming items reach us, then puts the user's settings back.
      */
     private static <T> T withLiveStreamsVisible(Loader<T> loader) throws Exception {
         MediaServiceData data = MediaServiceData.instance();
-        boolean hidden = data != null && data.isContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS);
+        int[] filters = {MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS, MediaServiceData.CONTENT_UPCOMING_SUBSCRIPTIONS};
+        List<Integer> lifted = new ArrayList<>();
 
-        if (hidden) {
-            data.setContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS, false);
+        if (data != null) {
+            for (int filter : filters) {
+                if (data.isContentHidden(filter)) {
+                    data.setContentHidden(filter, false);
+                    lifted.add(filter);
+                }
+            }
         }
 
         try {
             return loader.load();
         } finally {
-            if (hidden) {
-                data.setContentHidden(MediaServiceData.CONTENT_STREAMS_SUBSCRIPTIONS, true);
+            for (int filter : lifted) {
+                data.setContentHidden(filter, true);
             }
         }
     }
@@ -285,18 +296,33 @@ public final class LiveSection {
         }
     }
 
-    private static void collect(@Nullable MediaGroup page, @Nullable List<MediaItem> live, List<MediaItem> past, Set<String> seen) {
-        if (page == null || page.getMediaItems() == null) {
+    private static void collect(@Nullable MediaGroup page, @Nullable List<MediaItem> live, @Nullable List<MediaItem> upcoming,
+                                List<MediaItem> past, Set<String> seen) {
+        if (page != null) {
+            classify(page.getMediaItems(), live, upcoming, past, seen);
+        }
+    }
+
+    /**
+     * Sorts feed items into live / upcoming / past. A null list means "don't collect this kind".
+     * Normal uploads and Shorts are skipped.
+     */
+    static void classify(@Nullable List<MediaItem> items, @Nullable List<MediaItem> live, @Nullable List<MediaItem> upcoming,
+                         List<MediaItem> past, Set<String> seen) {
+        if (items == null) {
             return;
         }
 
-        for (MediaItem item : page.getMediaItems()) {
-            if (item == null || item.getVideoId() == null || item.isShorts() || !seen.add(item.getVideoId())
-                    || isUpcomingStream(item.isUpcoming(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())) {
+        for (MediaItem item : items) {
+            if (item == null || item.getVideoId() == null || item.isShorts() || !seen.add(item.getVideoId())) {
                 continue;
             }
 
-            if (isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())) {
+            if (isUpcomingStream(item.isUpcoming(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())) {
+                if (upcoming != null) {
+                    upcoming.add(item);
+                }
+            } else if (isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())) {
                 if (live != null) {
                     live.add(item);
                 }
