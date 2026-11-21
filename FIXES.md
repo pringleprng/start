@@ -323,7 +323,8 @@ by itself; use the settings.
 **Commits:** `[DumbTube] LIVE! sidebar section: live and past streams of subscriptions`,
 `[DumbTube] LIVE!: find currently live streams more reliably`,
 `[DumbTube] Hide past live streams from the Subscriptions page`,
-`[DumbTube] Subscriptions page: hide live streams too, LIVE! keeps all`
+`[DumbTube] Subscriptions page: hide live streams too, LIVE! keeps all`,
+`[DumbTube] Subscriptions page: hide upcoming streams too`
 
 **What it does**
 - A new sidebar section **LIVE!** with its own icon (the Subscriptions stack with a broadcast symbol),
@@ -336,12 +337,14 @@ by itself; use the settings.
   - **Past live streams**: finished streams, newest to oldest (feed order). The first load reads up to
     6 feed pages (about 30 streams). Scrolling to the end of the row loads older feed pages, so it
     keeps going back through the whole feed.
-- Upcoming/scheduled streams and Shorts are left out.
-- **The normal Subscriptions page hides all streams, live and finished.** They're only in LIVE!,
-  which always shows all of them. Setting: Settings › DumbTube › *Subscriptions: hide live and past
-  live streams*, on by default. This covers the first page and every page loaded while scrolling.
-  Items are removed in place, like SmartTube's own Shorts filter, so paging keeps working. Normal
-  uploads and upcoming (scheduled) streams stay in Subscriptions.
+- Upcoming/scheduled streams, premieres and Shorts are left out.
+- **The normal Subscriptions page hides all streams: live, upcoming (scheduled streams and
+  premieres) and finished.** Live and finished ones are only in LIVE!, which always shows them;
+  upcoming ones are shown in neither. Upcoming items are detected by YouTube's flag, an "UPCOMING"
+  overlay, or "Scheduled for" / "Premieres" / "… waiting" on a video without a length. Setting:
+  Settings › DumbTube › *Subscriptions: hide all streams*, on by default. This covers the first page
+  and every page loaded while scrolling. Items are removed in place, like SmartTube's own Shorts
+  filter, so paging keeps working. Normal uploads stay.
 - It appears right after Subscriptions: from SidebarService's default list on fresh installs, and
   added once by `DumbTubeDefaults` on existing installs. Hide or move it like any other section.
 - Section id `77`: below SidebarService's `RESERVED_ID` (100) and far from upstream's
