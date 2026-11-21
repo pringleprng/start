@@ -386,7 +386,8 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 
 ## 12. Sidebar: icons-only mode and icon size
 
-**Commit:** `[DumbTube] Sidebar: icons only mode and icon size`
+**Commits:** `[DumbTube] Sidebar: icons only mode and icon size`,
+`[DumbTube] Sidebar: round pictures for pinned channels and playlists`
 
 **What it does**
 - Settings › DumbTube › **Sidebar: icons only** (off by default) hides the section names. The sidebar
@@ -395,11 +396,15 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
   `ThemeOverlay.DumbTube.Sidebar.Compact.<size>` (`smarttubetv/.../values/dumbtube_sidebar.xml`),
   which sets leanback's `browseRowsMarginStart`.
 - **Sidebar icon size**: 24 / 32 (SmartTube default) / 40 / 48 / 56 / 64 dp.
-- Both apply after an app restart; DumbTube shows a message when you leave its settings.
+- **Round pictures**: pinned channels and playlists, which show a picture instead of a drawn icon, are
+  clipped to a circle. The picture is center-cropped to fill it, like YouTube's channel icons; SmartTube
+  shows a square. Drawn icons (Home, Subscriptions, ...) are unchanged. Always on, Android 5+.
+- Icons only and icon size apply after an app restart; DumbTube shows a message when you leave its settings.
 
 **Files**
-- `smarttubetv/.../presenter/IconHeaderItemPresenter.java`: `onBindViewHolder()` →
-  `SidebarStyle.styleHeader(iconView, label)` (1 hook)
+- `smarttubetv/.../presenter/IconHeaderItemPresenter.java`: `onBindViewHolder()`, right after `iconView`
+  is found (before the picture loads, so Glide picks the center crop) →
+  `SidebarStyle.styleHeader(iconView, <label>, mIconUrl != null)` (1 hook)
 - `common/.../misc/MotherActivity.java`: `onCreate()` → `SidebarStyle.applyTheme(this)` (1 hook)
 - new: `common/.../dumbtube/SidebarStyle.java`, `smarttubetv/src/main/res/values/dumbtube_sidebar.xml`
 

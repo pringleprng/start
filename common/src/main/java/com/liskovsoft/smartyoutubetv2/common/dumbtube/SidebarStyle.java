@@ -3,8 +3,11 @@ package com.liskovsoft.smartyoutubetv2.common.dumbtube;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
+import android.graphics.Outline;
+import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -24,6 +27,8 @@ import java.util.List;
  * - "icons only": hides the labels, shrinks the sidebar to the icons and moves the rows over
  *   (theme overlay ThemeOverlay.DumbTube.Sidebar.Compact.&lt;size&gt;, dumbtube_sidebar.xml)<br/>
  * - icon size: 24-64 dp (SmartTube: 32 dp)<br/>
+ * - pictures (pinned channels and playlists) are round, cropped to fill the circle, like YouTube's channel
+ *   icons; SmartTube shows them square. Drawn icons (Home, Subscriptions...) stay as they are. Android 5+.<br/>
  * Applies to newly created screens, so a restart is asked for after changing it.<br/><br/>
  * Upstream hooks: IconHeaderItemPresenter.onBindViewHolder() -> {@link #styleHeader};
  * MotherActivity.onCreate() -> {@link #applyTheme}.
@@ -105,7 +110,7 @@ public final class SidebarStyle {
     /**
      * Hook (IconHeaderItemPresenter.onBindViewHolder): icon size, label visibility, sidebar width.
      */
-    public static void styleHeader(@Nullable ImageView icon, @Nullable TextView label) {
+    public static void styleHeader(@Nullable ImageView icon, @Nullable TextView label, boolean isPicture) {
         View any = icon != null ? icon : label;
 
         if (any == null) {
@@ -122,6 +127,10 @@ public final class SidebarStyle {
                 lp.width = iconSizePx;
                 lp.height = iconSizePx;
                 icon.setLayoutParams(lp);
+            }
+
+            if (Build.VERSION.SDK_INT >= 21) {
+                RoundPicture.apply(icon, isPicture);
             }
         }
 
@@ -161,6 +170,29 @@ public final class SidebarStyle {
         if (lp != null && lp.width != width) {
             lp.width = width;
             view.setLayoutParams(lp);
+        }
+    }
+
+    /**
+     * Separate class: ViewOutlineProvider only exists on Android 5+.
+     */
+    private static final class RoundPicture {
+        private static final ViewOutlineProvider CIRCLE = new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setOval(0, 0, view.getWidth(), view.getHeight());
+            }
+        };
+
+        static void apply(ImageView icon, boolean round) {
+            if (round == (icon.getOutlineProvider() == CIRCLE)) {
+                return;
+            }
+
+            // Fill the circle: avatars are square, playlist pictures 16:9 (fit-center would leave them a strip)
+            icon.setScaleType(round ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER);
+            icon.setOutlineProvider(round ? CIRCLE : ViewOutlineProvider.BACKGROUND);
+            icon.setClipToOutline(round);
         }
     }
 
