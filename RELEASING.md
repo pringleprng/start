@@ -65,17 +65,22 @@ base64 -i dumbtube-release.jks -o dumbtube-release.jks.b64
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("dumbtube-release.jks")) | Out-File -Encoding ascii dumbtube-release.jks.b64
 ```
 
-## 3. Add the 4 secrets to your GitHub repository
+## 3. Add the secrets to your GitHub repository
 
 On github.com, open your DumbTube repository and go to **Settings → Secrets and variables → Actions
-→ New repository secret**. Add:
+→ New repository secret**. Add these two:
 
 | Name | Value |
 |------|-------|
 | `DUMBTUBE_KEYSTORE_BASE64` | the whole content of `dumbtube-release.jks.b64` (one long line) |
 | `DUMBTUBE_KEYSTORE_PASSWORD` | the keystore password |
-| `DUMBTUBE_KEY_ALIAS` | `dumbtube` (the `-alias` you used) |
-| `DUMBTUBE_KEY_PASSWORD` | the key password (same as the keystore password for PKCS12) |
+
+Only if you used a different alias or key password:
+
+| Name | Value |
+|------|-------|
+| `DUMBTUBE_KEY_ALIAS` | the `-alias` you used (default `dumbtube`) |
+| `DUMBTUBE_KEY_PASSWORD` | the key password (default: same as the keystore password, which is always true for PKCS12) |
 
 Copying a long base64 string on a phone is fiddly. In Termux you can use the GitHub CLI instead:
 
@@ -85,8 +90,6 @@ gh auth login                                   # once
 cd <folder with the files>
 gh secret set DUMBTUBE_KEYSTORE_BASE64 -R OWNER/REPO < dumbtube-release.jks.b64
 gh secret set DUMBTUBE_KEYSTORE_PASSWORD -R OWNER/REPO   # prompts for the value
-gh secret set DUMBTUBE_KEY_ALIAS -R OWNER/REPO --body dumbtube
-gh secret set DUMBTUBE_KEY_PASSWORD -R OWNER/REPO        # prompts for the value
 ```
 
 Then delete the `.b64` file (`rm dumbtube-release.jks.b64`) and move `dumbtube-release.jks` into

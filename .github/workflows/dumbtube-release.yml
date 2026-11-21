@@ -1,8 +1,9 @@
 # [DumbTube] Build a signed DumbTube APK and publish it as a GitHub Release.
 #
 # Run it from the Actions tab: "DumbTube Release" -> "Run workflow" -> pick your DumbTube branch.
-# Needs 4 repository secrets (see RELEASING.md):
-#   DUMBTUBE_KEYSTORE_BASE64, DUMBTUBE_KEYSTORE_PASSWORD, DUMBTUBE_KEY_ALIAS, DUMBTUBE_KEY_PASSWORD
+# Needs 2 repository secrets (see RELEASING.md):
+#   DUMBTUBE_KEYSTORE_BASE64, DUMBTUBE_KEYSTORE_PASSWORD
+# Optional: DUMBTUBE_KEY_ALIAS (default "dumbtube"), DUMBTUBE_KEY_PASSWORD (default = keystore password)
 #
 # Versioning (see smarttubetv/dumbtube.gradle):
 #   versionName = <upstream versionName>-dt<revision>      e.g. 32.80-dt1
@@ -58,10 +59,10 @@ jobs:
           KEY_PASS: ${{ secrets.DUMBTUBE_KEY_PASSWORD }}
         run: |
           missing=""
-          [ -n "$KS_B64" ]    || missing="$missing DUMBTUBE_KEYSTORE_BASE64"
-          [ -n "$KS_PASS" ]   || missing="$missing DUMBTUBE_KEYSTORE_PASSWORD"
-          [ -n "$KEY_ALIAS" ] || missing="$missing DUMBTUBE_KEY_ALIAS"
-          [ -n "$KEY_PASS" ]  || missing="$missing DUMBTUBE_KEY_PASSWORD"
+          [ -n "$KS_B64" ]  || missing="$missing DUMBTUBE_KEYSTORE_BASE64"
+          [ -n "$KS_PASS" ] || missing="$missing DUMBTUBE_KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ] || echo "DUMBTUBE_KEY_ALIAS not set, using 'dumbtube'"
+          [ -n "$KEY_PASS" ]  || echo "DUMBTUBE_KEY_PASSWORD not set, using the keystore password"
           if [ -n "$missing" ]; then
             echo "::error::Missing repository secrets:$missing. See RELEASING.md."
             exit 1
@@ -138,6 +139,8 @@ jobs:
           KEY_PASS: ${{ secrets.DUMBTUBE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          KEY_ALIAS="${KEY_ALIAS:-dumbtube}"
+          KEY_PASS="${KEY_PASS:-$KS_PASS}"
           ks="$RUNNER_TEMP/dumbtube-release.jks"
           printf '%s' "$KS_B64" | tr -d ' \r\n' | base64 --decode > "$ks"
           esc() { local v="$1"; v="${v//\\/\\\\}"; printf '%s' "$v"; } # java.util.Properties escaping
