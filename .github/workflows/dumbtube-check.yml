@@ -27,6 +27,14 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon :smarttubetv:assembleStdumbtubeDebug
 
+      # Robolectric 4.6.1 (upstream's version) can't read JDK 17 class files (old ASM), so the
+      # Robolectric view tests (*ViewTest) only work on JDK 11. The plain JUnit tests run on either.
+      - name: Set up JDK 11 for the unit tests
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
       # Separate Gradle run on purpose: task names containing "Ststable" make upstream's build.gradle
       # apply the Google Services plugin, which must not happen in the same run as DumbTube tasks.
       - name: DumbTube unit tests

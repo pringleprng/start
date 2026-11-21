@@ -178,7 +178,8 @@ public final class OledNeonTheme {
     }
 
     private static double luminance(int color) {
-        return 0.2126 * channel(Color.red(color)) + 0.7152 * channel(Color.green(color)) + 0.0722 * channel(Color.blue(color));
+        // Color.red/green/blue without Android (plain JUnit tests)
+        return 0.2126 * channel((color >> 16) & 0xFF) + 0.7152 * channel((color >> 8) & 0xFF) + 0.0722 * channel(color & 0xFF);
     }
 
     private static double channel(int value) {
