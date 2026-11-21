@@ -7,6 +7,21 @@ hook lines if they conflict, then build, release and install.
 Upstream releases: https://github.com/yuliskov/SmartTube/releases. Stable tags end in `s`
 (e.g. `32.80s` = "32.80 Stable"); tags without `s` are betas. DumbTube follows the **stable** tags.
 
+## Automatic updates (scheduled task)
+
+A Claude Code scheduled task, **"DumbTube: integrate SmartTube updates"**, runs once a day and does the
+steps below by itself. If there's no new stable tag, it stops immediately.
+
+If there is one, it does steps 1–5: backup branch, rebase, conflicts resolved by keeping upstream's code
+and re-adding the hook lines, hook count, diff check, build, tests and FIXES.md. Only when all of that
+passes does it push the branch (backup pushed as `backup/dumbtube-<old tag>`). It then waits for
+*DumbTube Check* and runs *DumbTube Release*, so the in-app updater offers the new version.
+
+If anything fails, it pushes its attempt to `dumbtube-update-<new tag>` instead, leaves the DumbTube
+branch alone, and reports what broke. It never drops a DumbTube change: features that upstream may now
+cover are listed in its report for you to decide. Manage the task in the Claude app (scheduled tasks).
+The release step needs the two signing secrets from RELEASING.md.
+
 ---
 
 ## One-time setup
