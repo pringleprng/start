@@ -24,9 +24,12 @@ fully qualified class name, so no import lines change.
 | 2 | [Settings tile + prefs store](#2-dumbtube-settings-tile-and-prefs-store-infrastructure) (infrastructure) | 32.80s |
 | 3 | [Per-channel captions / auto-translate](#3-per-channel-captions-and-auto-translate) | 32.80s |
 | 4 | [Subscriptions feed autoplay order](#4-subscriptions-feed-autoplay-order) | 32.80s |
-| 5 | [Text brightness + caption brightness](#5-text-brightness-and-caption-brightness) | 32.80s |
+| 5 | [Text, player text and caption brightness](#5-text-player-text-and-caption-brightness) | 32.80s |
 | 6 | [OLED theme (default), focus/accent colors](#6-oled-theme-default-with-focus-and-accent-colors) | 32.80s |
 | 7 | [Release CI, Termux installer, docs](#7-release-ci-termux-installer-docs) | 32.80s |
+| 8 | [Top bar icons: no circles, own brightness](#8-top-bar-icons-no-circle-backgrounds-own-brightness) | 32.80s |
+| 9 | [Clock hidden by default](#9-top-right-clock-hidden-by-default) | 32.80s |
+| 10 | [Card video length badge style](#10-card-video-length-badge-outlined-text-color-brightness) | 32.80s |
 
 ---
 
@@ -143,9 +146,10 @@ feed, playback falls back to upstream behaviour (recommendation).
 setting, or makes the section playlist the default for Subscriptions. Check `Video.isSectionPlaylistEnabled()`
 and `PlayerTweaksData`.
 
-## 5. Text brightness and caption brightness
+## 5. Text, player text and caption brightness
 
-**Commit:** `[DumbTube] Text brightness (dim all UI text) and caption brightness`
+**Commits:** `[DumbTube] Text brightness (dim all UI text) and caption brightness` and
+`[DumbTube] Player text brightness`
 
 **What it does**
 - Settings › DumbTube › **Text brightness**: 100 % down to 30 % in 10 % steps. Dims **all interface
@@ -153,15 +157,23 @@ and `PlayerTweaksData`.
   (title, description, times). Each activity window gets a pre-draw listener that re-tints every
   `TextView` with a wrapped `ColorStateList`. RGB is scaled; alpha and focus/selected states are kept.
   It needs no per-screen changes and picks up colors that screens set later (e.g. focused cards).
+- **Player text brightness**: a separate level for the player window's text (title, times,
+  descriptions). Default *Same as interface text*. It can be changed in Settings › DumbTube and
+  **in the player**: playback settings dialog › *Player text brightness*. It applies live; dialogs
+  opened from the player keep the interface level. The player window is recognised by its activity
+  class name (`*.PlaybackActivity`).
 - Settings › DumbTube › **Caption brightness**: same steps, applied to the subtitle text color of
   both SmartTube's caption styles and the system caption style.
 
-**Not covered:** toasts, the player tooltip popup, and colored spans inside text (e.g. some badges).
+**Not covered:** toasts, the player tooltip popup, and colored spans inside text (some badges; the
+card video length badge has its own brightness, see 10).
 
 **Files**
 - `common/.../misc/MotherActivity.java`: `onResume()` → `TextDimmer.attach(this)` (1 hook)
 - `common/.../exoplayer/other/SubtitleManager.java`: `applyStyle()` / `applySystemStyle()` →
   `TextDimmer.dimCaptionStyle(...)` (1 hook each)
+- `common/.../playback/controllers/HQDialogController.java`: `onHighQualityClicked()` →
+  `addCategoryInt(TextDimmer.createPlayerTextCategory(...))` (1 hook)
 - new: `common/.../dumbtube/TextDimmer.java`, `common/src/main/res/values/dumbtube_ids.xml`,
   test `common/src/test/.../dumbtube/TextDimmerTest.java`
 
@@ -237,3 +249,67 @@ instead of `lb_preference_decor_list_background`.
 untouched. Switch them off in the Actions tab (see RELEASING.md).
 
 **Drop it when:** never (fork tooling).
+
+## 8. Top bar icons: no circle backgrounds, own brightness
+
+**Commit:** `[DumbTube] Top bar icons: no circle backgrounds, own brightness`
+
+**What it does**
+- Round icon buttons ("orbs") are shown without their colored circle. That covers search in the top
+  left, account, language, exit-PiP, and the search-screen and channel-header buttons. Switch in
+  Settings › DumbTube, on by default. The voice-search mic keeps its circle, because it shows the
+  listening state.
+- **Search and top bar icon brightness**: 100–30 %, separate from text brightness. The focused icon
+  uses this level, the others 60 % of it. Together with leanback's zoom, that marks focus now that
+  the circle is gone. Implemented as image alpha, which equals brightness on a black bar.
+- Orbs are found at runtime by their `search_orb` + `icon` child views. The `common` module doesn't
+  depend on leanback, so it can't check their class.
+
+**Not covered:** the player control buttons keep their focus circle; it's their only focus indicator.
+
+**Files**
+- `common/.../misc/MotherActivity.java`: `onResume()` → `TopBarIcons.attach(this)` (1 hook)
+- new: `common/.../dumbtube/TopBarIcons.java`
+
+**Drop it when:** upstream offers flat (background-less) top bar buttons. Check `lb_title_view.xml` /
+`NavigateTitleView`.
+
+## 9. Top-right clock hidden by default
+
+**Commit:** `[DumbTube] Hide the top-right clock by default`
+
+**What it does:** on the first start of this version, once per account profile, DumbTube switches off
+upstream's top-right clock + date in the browse screens (`GeneralData` global clock) and the clock in
+the top right of the player controls (`PlayerData` clock and global clock). It uses the normal
+settings, so you can turn them back on in Settings › Main UI / Player and they stay on. To add another
+"DumbTube default" later, add a new step with a new key in `DumbTubeDefaults`.
+
+**Files**
+- `common/.../misc/MotherActivity.java`: `onCreate()` → `DumbTubeDefaults.applyOnce(this)` (1 hook)
+- new: `common/.../dumbtube/DumbTubeDefaults.java`
+
+**Drop it when:** you'd rather have upstream's defaults. Removing it doesn't turn the clock back on
+by itself; use the settings.
+
+## 10. Card video length badge: outlined text, color, brightness
+
+**Commit:** `[DumbTube] Card video length badge: outlined text, color and brightness`
+
+**What it does**
+- The video length on card thumbnails is drawn without SmartTube's black box, as outlined text.
+  Default: **black text with a light grey outline**.
+- Settings › DumbTube:
+  - **text color**: black, the palette, or *SmartTube original* (white text in a black box)
+  - **outline color**: none, black, or the palette
+  - **brightness**: 100–30 %, separate from the text brightness
+- LIVE / NEW / upcoming badges keep SmartTube's red box.
+- A `ReplacementSpan` strokes, then fills, the text in its own colors, so the global text dimmer
+  doesn't change it. The badge kind (normal vs red) is remembered in a view tag, because the box is
+  made transparent.
+
+**Files**
+- `smarttubetv/.../widgets/complexcardview/ComplexImageView.java`: `setBadgeText()` /
+  `setBadgeColor()` → `CardBadge.restyle(mBadgeText)` (1 hook each)
+- new: `common/.../dumbtube/CardBadge.java`, test `common/src/test/.../dumbtube/CardBadgeTest.java`
+
+**Drop it when:** upstream offers badge styling options (`ComplexImageView`, `text_badge_image_view.xml`).
