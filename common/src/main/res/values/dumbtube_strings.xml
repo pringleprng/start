@@ -57,4 +57,11 @@
     <string translatable="false" name="dumbtube_sidebar_icons_only">Sidebar: icons only (hide the words)</string>
     <string translatable="false" name="dumbtube_sidebar_icon_size">Sidebar icon size</string>
     <string translatable="false" name="dumbtube_sidebar_icon_size_default">%d dp (SmartTube default)</string>
+
+    <!-- Content top spacing -->
+    <string translatable="false" name="dumbtube_top_spacing">Top spacing of the content (when the clock is hidden)</string>
+    <string translatable="false" name="dumbtube_top_tight">Tight (%d dp)</string>
+    <string translatable="false" name="dumbtube_top_compact">Compact (%d dp, default)</string>
+    <string translatable="false" name="dumbtube_top_medium">Medium (%d dp)</string>
+    <string translatable="false" name="dumbtube_top_smarttube">SmartTube (%d dp)</string>
 </resources>
