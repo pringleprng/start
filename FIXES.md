@@ -320,17 +320,26 @@ by itself; use the settings.
 
 ## 11. LIVE! sidebar section: live and past streams of subscriptions
 
-**Commit:** `[DumbTube] LIVE! sidebar section: live and past streams of subscriptions`
+**Commits:** `[DumbTube] LIVE! sidebar section: live and past streams of subscriptions`,
+`[DumbTube] LIVE!: find currently live streams more reliably`,
+`[DumbTube] Hide past live streams from the Subscriptions page`
 
 **What it does**
 - A new sidebar section **LIVE!** with its own icon (the Subscriptions stack with a broadcast symbol),
   built from your Subscriptions feed:
-  - **Live now**: subscribed channels that are live right now (YouTube's live flag). This row shows
-    as soon as the first feed page is in.
+  - **Live now**: subscribed channels that are live right now. Uses YouTube's live flag, plus
+    YouTube's own "LIVE" thumbnail overlay or "… watching" text (on a video without a length) as a
+    fallback, because the flag depends on one tile style value that YouTube changes now and then.
+    SmartTube's *hide streams in Subscriptions* filter is lifted while LIVE! loads, so it can't hide
+    them. This row shows as soon as the first feed page is in.
   - **Past live streams**: finished streams, newest to oldest (feed order). The first load reads up to
     6 feed pages (about 30 streams). Scrolling to the end of the row loads older feed pages, so it
     keeps going back through the whole feed.
 - Upcoming/scheduled streams and Shorts are left out.
+- **The normal Subscriptions page hides past live streams** (Settings › DumbTube › *Subscriptions:
+  hide past live streams*, on by default). This covers the first page and every page loaded while
+  scrolling. Items are removed in place, like SmartTube's own Shorts filter, so paging keeps working.
+  Live streams, upcoming streams and normal uploads stay.
 - It appears right after Subscriptions: from SidebarService's default list on fresh installs, and
   added once by `DumbTubeDefaults` on existing installs. Hide or move it like any other section.
 - Section id `77`: below SidebarService's `RESERVED_ID` (100) and far from upstream's
@@ -343,8 +352,8 @@ are matched best-effort (`LiveSection.STREAMED_MARKERS`). If past streams are mi
 YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 
 **Files**
-- `common/.../presenters/BrowsePresenter.java`: `initSectionMapping()`, `initRowAndGridMapping()`,
-  `continueGroup()` (1 hook line each)
+- `common/.../presenters/BrowsePresenter.java`: `initSectionMapping()` (1), `initRowAndGridMapping()` (2:
+  LIVE! rows, Subscriptions filter), `continueGroup()` (1) hook lines
 - `common/.../presenters/service/SidebarService.java`: `initSections()` (1 hook line after Subscriptions)
 - new: `common/.../dumbtube/LiveSection.java`, `drawable-nodpi/dumbtube_icon_live_subs.png`,
   test `common/src/test/.../dumbtube/LiveSectionTest.java`

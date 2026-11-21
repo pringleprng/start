@@ -89,7 +89,7 @@ Conflicts can only happen in the few upstream files that carry a hook. List them
 | `smarttubetv/.../presenter/VideoCardPresenter.java`, `ChannelCardPresenter.java`, `SettingsCardPresenter.java`, `presenter/vineyard/TagPresenter.java` | 2 lines (`focusBackground`/`focusText`) after the selected card colors are set |
 | `smarttubetv/.../widgets/complexcardview/ComplexImageView.java` | `CardBadge.restyle(mBadgeText)` in `setBadgeText()` and `setBadgeColor()` |
 | `common/.../controllers/HQDialogController.java` | `addCategoryInt(TextDimmer.createPlayerTextCategory(...))` in `onHighQualityClicked()` |
-| `common/.../presenters/BrowsePresenter.java` | `LiveSection` lines in `initSectionMapping()`, `initRowAndGridMapping()` and after `continueGroupObserve(...)` in `continueGroup()` |
+| `common/.../presenters/BrowsePresenter.java` | `LiveSection` lines in `initSectionMapping()`, `initRowAndGridMapping()` (LIVE! rows; Subscriptions filter right after the Subscriptions grid line) and after `continueGroupObserve(...)` in `continueGroup()` |
 | `common/.../presenters/service/SidebarService.java` | `mDefaultSections.put(... LiveSection.SECTION_ID)` after the Subscriptions line in `initSections()` |
 | `smarttubetv/.../presenter/IconHeaderItemPresenter.java` | `SidebarStyle.styleHeader(iconView, label)` in `onBindViewHolder()` |
 | `.gitignore` | 4 lines at the end |
@@ -115,7 +115,7 @@ git submodule update --init --recursive
 
 ```bash
 grep -rn "\[DumbTube\]" --include=*.java --include=build.gradle . | grep -v "/dumbtube/\|/build/" | wc -l
-# expected: 38  (MotherActivity 6, PlayerUIController 5, BrowsePresenter 3, MainUIData 3,
+# expected: 39  (MotherActivity 6, PlayerUIController 5, BrowsePresenter 4, MainUIData 3,
 #                AppDataSourceManager 2, SubtitleManager 2, ComplexImageView 2, 4 card presenters x 2,
 #                VideoStateController 1, ErrorFixerController 1, HQDialogController 1, Video 1,
 #                SidebarService 1, IconHeaderItemPresenter 1, build.gradle 1)
