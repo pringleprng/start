@@ -20,4 +20,8 @@
 
     <!-- Subscriptions feed autoplay order -->
     <string translatable="false" name="dumbtube_subs_autoplay">DumbTube: Subscriptions autoplay plays the next video of the feed (not a recommendation)</string>
+
+    <!-- Text dimming -->
+    <string translatable="false" name="dumbtube_text_brightness">Text brightness (all interface text)</string>
+    <string translatable="false" name="dumbtube_caption_brightness">Caption brightness</string>
 </resources>
