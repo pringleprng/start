@@ -32,6 +32,7 @@ public class DumbTubeSettingsPresenter extends BasePresenter<Void> {
         // Feature sections (one line per DumbTube feature)
         ChannelCaptions.instance(context).appendSettings(dialog);
         SubscriptionsAutoplay.appendSettings(context, dialog);
+        LiveSection.appendSettings(context, dialog);
         TextDimmer.appendSettings(context, dialog);
         OledNeonTheme.appendSettings(context, dialog);
         TopBarIcons.appendSettings(context, dialog);
