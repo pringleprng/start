@@ -1,45 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- [DumbTube] Color scheme: OLED (neon green). Pure black backgrounds, #39FF14 accent. -->
+<!-- [DumbTube] Color scheme: OLED. Pure black backgrounds. -->
 <!-- Selected through com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme (style names are looked up by name). -->
+<!-- Accent (seek bar, icons, switches, progress) comes from a ThemeOverlay.DumbTube.Accent.* overlay
+     (dumbtube_palette.xml) chosen in Settings > DumbTube. The values below are only the defaults. -->
+<!-- Focus highlight of cards/tiles is set at runtime by OledNeonTheme.focusBackground(). -->
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="App.Theme.DumbTube.OLED.Browse" parent="App.Theme.Leanback.Browse">
         <item name="android:windowBackground">@color/dumbtube_black</item>
         <item name="brandColor">@color/dumbtube_black</item>
-        <item name="brandAccentColor">@color/dumbtube_neon</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_neon_green</item>
         <item name="shelfBackground">@color/dumbtube_black</item>
         <item name="cardDefaultBackground">@color/dumbtube_black</item>
-        <item name="cardSelectedBackground">@color/dumbtube_neon</item>
-        <item name="cardProgressStyle">@style/ProgressBarHorizontal.DumbTubeNeon</item>
+        <item name="cardSelectedBackground">@color/dumbtube_palette_light_grey</item>
+        <item name="cardProgressStyle">@style/ProgressBarHorizontal.DumbTube</item>
         <item name="appLogo">@null</item>
         <item name="defaultBrandColor">@color/dumbtube_black</item>
         <item name="overlayDimMaskColor">@color/dumbtube_black</item>
-        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_neon</item>
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_neon_green</item>
         <item name="android:colorPrimary" tools:targetApi="21">@color/dumbtube_black</item>
     </style>
 
     <style name="App.Theme.DumbTube.OLED.Player" parent="App.Theme.Leanback.Player">
         <item name="android:windowBackground">@color/dumbtube_black</item>
-        <item name="playbackProgressPrimaryColor">@color/dumbtube_neon</item>
-        <item name="playbackProgressSecondaryColor">@color/dumbtube_neon_dark</item>
-        <item name="playbackControlsIconHighlightColor">@color/dumbtube_neon</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_neon_green</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_neon_green_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_neon_green</item>
         <item name="shelfBackground">@color/dumbtube_black</item>
         <item name="cardDefaultBackground">@color/dumbtube_black</item>
-        <item name="cardSelectedBackground">@color/dumbtube_neon</item>
-        <item name="cardProgressStyle">@style/ProgressBarHorizontal.DumbTubeNeon</item>
+        <item name="cardSelectedBackground">@color/dumbtube_palette_light_grey</item>
+        <item name="cardProgressStyle">@style/ProgressBarHorizontal.DumbTube</item>
         <item name="defaultBrandColor">@color/dumbtube_black</item>
         <item name="overlayDimMaskColor">@color/dumbtube_black</item>
-        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_neon</item>
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_neon_green</item>
         <item name="android:colorPrimary" tools:targetApi="21">@color/dumbtube_black</item>
     </style>
 
     <!-- Dialogs / settings. The list panel color is a fixed library color, OledNeonTheme paints it black at runtime. -->
     <style name="App.Theme.DumbTube.OLED.Preferences" parent="App.Theme.Leanback.Preferences">
         <item name="defaultBrandColor">@color/dumbtube_black</item>
-        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_neon</item>
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_neon_green</item>
         <item name="android:colorPrimary" tools:targetApi="21">@color/dumbtube_black</item>
     </style>
 
-    <style name="ProgressBarHorizontal.DumbTubeNeon" parent="@android:style/Widget.ProgressBar.Horizontal">
-        <item name="android:progressDrawable">@drawable/dumbtube_progress_bar_neon</item>
+    <style name="ProgressBarHorizontal.DumbTube" parent="@android:style/Widget.ProgressBar.Horizontal">
+        <item name="android:progressDrawable">@drawable/dumbtube_progress_bar</item>
+        <item name="android:progressTint" tools:targetApi="21">?android:attr/colorAccent</item>
     </style>
 </resources>

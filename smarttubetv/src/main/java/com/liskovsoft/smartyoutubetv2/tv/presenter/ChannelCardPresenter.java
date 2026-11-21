@@ -50,6 +50,8 @@ public class ChannelCardPresenter extends LongClickPresenter {
                 ContextCompat.getColor(context, Helpers.getThemeAttr(context, R.attr.cardSelectedBackground));
         mSelectedTextColor =
                 ContextCompat.getColor(context, R.color.card_selected_text_grey);
+        mSelectedBackgroundColor = com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.focusBackground(context, mSelectedBackgroundColor); // [DumbTube]
+        mSelectedTextColor = com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.focusText(context, mSelectedTextColor); // [DumbTube]
 
         updateDimensions(context);
 

@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DumbTube] OLED theme color palette + accent overlays. Generated, keep in sync with
+     common/.../dumbtube/OledNeonTheme.java PALETTE. An accent overlay is applied on top of the
+     activity theme (OledNeonTheme.applyColors) and drives the "minor" accents: seek bar,
+     player icon highlight, switches/radios (colorAccent), card progress, search orb. -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <color name="dumbtube_palette_light_grey">#FFBDBDBD</color>
+    <color name="dumbtube_palette_light_grey_dark">#FF5E5E5E</color>
+    <color name="dumbtube_palette_silver">#FFE0E0E0</color>
+    <color name="dumbtube_palette_silver_dark">#FF707070</color>
+    <color name="dumbtube_palette_grey">#FF8C8C8C</color>
+    <color name="dumbtube_palette_grey_dark">#FF464646</color>
+    <color name="dumbtube_palette_dark_grey">#FF424242</color>
+    <color name="dumbtube_palette_dark_grey_dark">#FF212121</color>
+    <color name="dumbtube_palette_charcoal">#FF262626</color>
+    <color name="dumbtube_palette_charcoal_dark">#FF131313</color>
+    <color name="dumbtube_palette_neon_green">#FF39FF14</color>
+    <color name="dumbtube_palette_neon_green_dark">#FF1C7F0A</color>
+    <color name="dumbtube_palette_green">#FF00C853</color>
+    <color name="dumbtube_palette_green_dark">#FF006429</color>
+    <color name="dumbtube_palette_teal">#FF1DE9B6</color>
+    <color name="dumbtube_palette_teal_dark">#FF0E745B</color>
+    <color name="dumbtube_palette_cyan">#FF00E5FF</color>
+    <color name="dumbtube_palette_cyan_dark">#FF00727F</color>
+    <color name="dumbtube_palette_blue">#FF2979FF</color>
+    <color name="dumbtube_palette_blue_dark">#FF143C7F</color>
+    <color name="dumbtube_palette_indigo">#FF536DFE</color>
+    <color name="dumbtube_palette_indigo_dark">#FF29367F</color>
+    <color name="dumbtube_palette_purple">#FFD500F9</color>
+    <color name="dumbtube_palette_purple_dark">#FF6A007C</color>
+    <color name="dumbtube_palette_magenta">#FFFF00FF</color>
+    <color name="dumbtube_palette_magenta_dark">#FF7F007F</color>
+    <color name="dumbtube_palette_pink">#FFFF4081</color>
+    <color name="dumbtube_palette_pink_dark">#FF7F2040</color>
+    <color name="dumbtube_palette_red">#FFFF1744</color>
+    <color name="dumbtube_palette_red_dark">#FF7F0B22</color>
+    <color name="dumbtube_palette_orange">#FFFF9100</color>
+    <color name="dumbtube_palette_orange_dark">#FF7F4800</color>
+    <color name="dumbtube_palette_amber">#FFFFC400</color>
+    <color name="dumbtube_palette_amber_dark">#FF7F6200</color>
+    <color name="dumbtube_palette_yellow">#FFFFEA00</color>
+    <color name="dumbtube_palette_yellow_dark">#FF7F7500</color>
+    <color name="dumbtube_palette_white">#FFFFFFFF</color>
+    <color name="dumbtube_palette_white_dark">#FF7F7F7F</color>
+
+    <!-- Light grey -->
+    <style name="ThemeOverlay.DumbTube.Accent.light_grey" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_light_grey</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_light_grey</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_light_grey_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_light_grey</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_light_grey</item>
+    </style>
+    <!-- Silver -->
+    <style name="ThemeOverlay.DumbTube.Accent.silver" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_silver</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_silver</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_silver_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_silver</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_silver</item>
+    </style>
+    <!-- Grey -->
+    <style name="ThemeOverlay.DumbTube.Accent.grey" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_grey</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_grey</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_grey_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_grey</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_grey</item>
+    </style>
+    <!-- Dark grey -->
+    <style name="ThemeOverlay.DumbTube.Accent.dark_grey" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_dark_grey</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_dark_grey</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_dark_grey_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_dark_grey</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_dark_grey</item>
+    </style>
+    <!-- Charcoal -->
+    <style name="ThemeOverlay.DumbTube.Accent.charcoal" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_charcoal</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_charcoal</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_charcoal_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_charcoal</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_charcoal</item>
+    </style>
+    <!-- Neon green -->
+    <style name="ThemeOverlay.DumbTube.Accent.neon_green" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_neon_green</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_neon_green</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_neon_green_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_neon_green</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_neon_green</item>
+    </style>
+    <!-- Green -->
+    <style name="ThemeOverlay.DumbTube.Accent.green" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_green</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_green</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_green_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_green</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_green</item>
+    </style>
+    <!-- Teal -->
+    <style name="ThemeOverlay.DumbTube.Accent.teal" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_teal</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_teal</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_teal_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_teal</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_teal</item>
+    </style>
+    <!-- Cyan -->
+    <style name="ThemeOverlay.DumbTube.Accent.cyan" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_cyan</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_cyan</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_cyan_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_cyan</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_cyan</item>
+    </style>
+    <!-- Blue -->
+    <style name="ThemeOverlay.DumbTube.Accent.blue" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_blue</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_blue</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_blue_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_blue</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_blue</item>
+    </style>
+    <!-- Indigo -->
+    <style name="ThemeOverlay.DumbTube.Accent.indigo" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_indigo</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_indigo</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_indigo_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_indigo</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_indigo</item>
+    </style>
+    <!-- Purple -->
+    <style name="ThemeOverlay.DumbTube.Accent.purple" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_purple</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_purple</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_purple_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_purple</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_purple</item>
+    </style>
+    <!-- Magenta -->
+    <style name="ThemeOverlay.DumbTube.Accent.magenta" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_magenta</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_magenta</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_magenta_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_magenta</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_magenta</item>
+    </style>
+    <!-- Pink -->
+    <style name="ThemeOverlay.DumbTube.Accent.pink" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_pink</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_pink</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_pink_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_pink</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_pink</item>
+    </style>
+    <!-- Red -->
+    <style name="ThemeOverlay.DumbTube.Accent.red" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_red</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_red</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_red_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_red</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_red</item>
+    </style>
+    <!-- Orange -->
+    <style name="ThemeOverlay.DumbTube.Accent.orange" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_orange</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_orange</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_orange_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_orange</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_orange</item>
+    </style>
+    <!-- Amber -->
+    <style name="ThemeOverlay.DumbTube.Accent.amber" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_amber</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_amber</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_amber_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_amber</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_amber</item>
+    </style>
+    <!-- Yellow -->
+    <style name="ThemeOverlay.DumbTube.Accent.yellow" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_yellow</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_yellow</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_yellow_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_yellow</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_yellow</item>
+    </style>
+    <!-- White -->
+    <style name="ThemeOverlay.DumbTube.Accent.white" parent="">
+        <item name="android:colorAccent" tools:targetApi="21">@color/dumbtube_palette_white</item>
+        <item name="playbackProgressPrimaryColor">@color/dumbtube_palette_white</item>
+        <item name="playbackProgressSecondaryColor">@color/dumbtube_palette_white_dark</item>
+        <item name="playbackControlsIconHighlightColor">@color/dumbtube_palette_white</item>
+        <item name="brandAccentColor">@color/dumbtube_palette_white</item>
+    </style>
+</resources>

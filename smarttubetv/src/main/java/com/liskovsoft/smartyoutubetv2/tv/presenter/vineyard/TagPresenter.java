@@ -28,6 +28,8 @@ public class TagPresenter extends LongClickPresenter {
                 ContextCompat.getColor(parent.getContext(), R.color.card_selected_background_white);
         sSelectedTextColor =
                 ContextCompat.getColor(parent.getContext(), R.color.card_selected_text_grey);
+        sSelectedBackgroundColor = com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.focusBackground(parent.getContext(), sSelectedBackgroundColor); // [DumbTube]
+        sSelectedTextColor = com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.focusText(parent.getContext(), sSelectedTextColor); // [DumbTube]
 
         TagCardView cardView = new TagCardView(parent.getContext()) {
             @Override

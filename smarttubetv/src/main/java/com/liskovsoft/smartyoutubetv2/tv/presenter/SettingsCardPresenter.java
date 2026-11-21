@@ -34,6 +34,8 @@ public class SettingsCardPresenter extends Presenter {
                 ContextCompat.getColor(context, R.color.card_selected_background_white);
         mSelectedTextColor =
                 ContextCompat.getColor(context, R.color.card_selected_text_grey);
+        mSelectedBackgroundColor = com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.focusBackground(context, mSelectedBackgroundColor); // [DumbTube]
+        mSelectedTextColor = com.liskovsoft.smartyoutubetv2.common.dumbtube.OledNeonTheme.focusText(context, mSelectedTextColor); // [DumbTube]
 
         @SuppressLint("InflateParams")
         View container = LayoutInflater.from(context).inflate(R.layout.settings_card, null);
