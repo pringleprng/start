@@ -174,11 +174,14 @@ public class PlayerUIController extends BasePlayerController {
             }
         }
 
+        matchedFormat = com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).preferSaved(getVideo(), getPlayer().getSubtitleFormats(), matchedFormat); // [DumbTube]
+
         // Match found
         if (matchedFormat != null) {
             FormatItem format = enabled ? FormatItem.SUBTITLE_NONE : matchedFormat;
             getPlayer().setFormat(format);
             getPlayerData().setFormat(format);
+            com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).onUserSelected(getVideo(), format); // [DumbTube]
             getPlayer().setButtonState(R.id.lb_control_closed_captioning, !FormatItem.SUBTITLE_NONE.equals(matchedFormat) && !enabled ? PlayerUI.BUTTON_ON : PlayerUI.BUTTON_OFF);
             enableSubtitleForChannel(!enabled);
         } else {
@@ -211,6 +214,7 @@ public class PlayerUIController extends BasePlayerController {
                                 enableSubtitleForChannel(!format.isDefault());
                                 getPlayer().setFormat(format);
                                 getPlayerData().setFormat(format);
+                                com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).onUserSelected(getVideo(), format); // [DumbTube]
                             },
                             getContext().getString(R.string.subtitles_disabled)));
             settingsPresenter.showDialog();
@@ -228,12 +232,15 @@ public class PlayerUIController extends BasePlayerController {
                                 enableSubtitleForChannel(!format.isDefault());
                                 getPlayer().setFormat(format);
                                 getPlayerData().setFormat(format);
+                                com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).onUserSelected(getVideo(), format); // [DumbTube]
                             },
                             getContext().getString(R.string.subtitles_disabled)));
             settingsPresenter.showDialog();
         }));
 
         settingsPresenter.appendSingleSwitch(AppDialogUtil.createSubtitleChannelOption(getContext()));
+
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).appendPlayerOptions(settingsPresenter, getVideo()); // [DumbTube]
 
         OptionCategory stylesCategory = AppDialogUtil.createSubtitleStylesCategory(getContext());
         settingsPresenter.appendRadioCategory(stylesCategory.title, stylesCategory.options);

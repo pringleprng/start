@@ -476,6 +476,7 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     }
 
     private void disableSubtitles() {
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.ChannelCaptions.instance(getContext()).suspendFor(getVideo()); // [DumbTube]
         getPlayerData().setSubtitlesPerChannelEnabled(false); // Important!
         getPlayerData().setFormat(FormatItem.SUBTITLE_NONE);
     }
