@@ -322,7 +322,8 @@ by itself; use the settings.
 
 **Commits:** `[DumbTube] LIVE! sidebar section: live and past streams of subscriptions`,
 `[DumbTube] LIVE!: find currently live streams more reliably`,
-`[DumbTube] Hide past live streams from the Subscriptions page`
+`[DumbTube] Hide past live streams from the Subscriptions page`,
+`[DumbTube] Subscriptions page: hide live streams too, LIVE! keeps all`
 
 **What it does**
 - A new sidebar section **LIVE!** with its own icon (the Subscriptions stack with a broadcast symbol),
@@ -336,10 +337,11 @@ by itself; use the settings.
     6 feed pages (about 30 streams). Scrolling to the end of the row loads older feed pages, so it
     keeps going back through the whole feed.
 - Upcoming/scheduled streams and Shorts are left out.
-- **The normal Subscriptions page hides past live streams** (Settings › DumbTube › *Subscriptions:
-  hide past live streams*, on by default). This covers the first page and every page loaded while
-  scrolling. Items are removed in place, like SmartTube's own Shorts filter, so paging keeps working.
-  Live streams, upcoming streams and normal uploads stay.
+- **The normal Subscriptions page hides all streams, live and finished.** They're only in LIVE!,
+  which always shows all of them. Setting: Settings › DumbTube › *Subscriptions: hide live and past
+  live streams*, on by default. This covers the first page and every page loaded while scrolling.
+  Items are removed in place, like SmartTube's own Shorts filter, so paging keeps working. Normal
+  uploads and upcoming (scheduled) streams stay in Subscriptions.
 - It appears right after Subscriptions: from SidebarService's default list on fresh installs, and
   added once by `DumbTubeDefaults` on existing installs. Hide or move it like any other section.
 - Section id `77`: below SidebarService's `RESERVED_ID` (100) and far from upstream's
