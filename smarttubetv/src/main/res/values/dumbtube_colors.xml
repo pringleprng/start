@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- [DumbTube] OLED neon theme colors -->
+<!-- [DumbTube] OLED theme base colors (accent/focus palette: dumbtube_palette.xml) -->
 <resources>
     <color name="dumbtube_black">#000000</color>
-    <color name="dumbtube_neon">#39FF14</color>
-    <!-- buffered part of the seek bar -->
-    <color name="dumbtube_neon_dark">#1F7A0F</color>
     <!-- unfilled part of card progress bars -->
     <color name="dumbtube_track">#26FFFFFF</color>
 </resources>

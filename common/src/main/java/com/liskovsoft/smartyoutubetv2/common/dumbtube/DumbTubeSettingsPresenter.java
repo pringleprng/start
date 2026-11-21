@@ -33,7 +33,8 @@ public class DumbTubeSettingsPresenter extends BasePresenter<Void> {
         ChannelCaptions.instance(context).appendSettings(dialog);
         SubscriptionsAutoplay.appendSettings(context, dialog);
         TextDimmer.appendSettings(context, dialog);
+        OledNeonTheme.appendSettings(context, dialog);
 
-        dialog.showDialog(context.getString(R.string.dumbtube_settings_title));
+        dialog.showDialog(context.getString(R.string.dumbtube_settings_title), () -> OledNeonTheme.onSettingsClosed(context));
     }
 }

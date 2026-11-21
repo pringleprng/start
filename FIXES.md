@@ -25,7 +25,7 @@ fully qualified class name, so no import lines change.
 | 3 | [Per-channel captions / auto-translate](#3-per-channel-captions-and-auto-translate) | 32.80s |
 | 4 | [Subscriptions feed autoplay order](#4-subscriptions-feed-autoplay-order) | 32.80s |
 | 5 | [Text brightness + caption brightness](#5-text-brightness-and-caption-brightness) | 32.80s |
-| 6 | [OLED neon theme (default)](#6-oled-neon-green-theme-default) | 32.80s |
+| 6 | [OLED theme (default), focus/accent colors](#6-oled-theme-default-with-focus-and-accent-colors) | 32.80s |
 | 7 | [Release CI, Termux installer, docs](#7-release-ci-termux-installer-docs) | 32.80s |
 
 ---
@@ -169,33 +169,52 @@ and `PlayerTweaksData`.
 `MainUISettingsPresenter`. Caption brightness can go when SmartTube's subtitle styles offer a
 text opacity/brightness option (`AppDialogUtil.createSubtitleStylesCategory`, `SubtitleManager`).
 
-## 6. OLED (neon green) theme, default
+## 6. OLED theme (default) with focus and accent colors
 
-**Commit:** `[DumbTube] OLED (neon green) theme, selected by default`
+**Commits:** `[DumbTube] OLED (neon green) theme, selected by default` and
+`[DumbTube] OLED theme: grey focus, choosable focus and accent colors`
 
 **What it does**
-- New color scheme **"OLED (neon green) - DumbTube"**, listed first in Settings › Main UI › color
-  scheme and active by default.
+- New color scheme **"OLED - DumbTube"**, listed first in Settings › Main UI › color scheme and
+  active by default.
 - Pure black `#000000`: window, browse rows, sidebar/headers, cards, settings and dialogs, and the
   player window. The app starts on a black window (flavor manifest), so there's no grey flash on launch.
-- Neon green `#39FF14`: focused cards, search orb, switches and radio buttons, card progress bars,
-  seek bar progress, and focused player buttons. The buffered part of the seek bar is dark green.
+- **Focus color** (default *light grey* `#BDBDBD`) is the background of the focused card or tile:
+  video and channel cards, Settings tiles, and search tags. The text on it switches between dark and
+  light automatically for contrast.
+- **Accent color** (default *neon green* `#39FF14`) covers only the small accents: seek bar (buffered
+  part in a darker shade), focused player icons, switches and radio buttons, card progress bars, and
+  the search orb.
+- Both are picked in **Settings › DumbTube** from a 19-color palette: greys, neon green and the usual
+  colors. Restart the app after changing them.
 - Opaque dark-grey panels that come from fixed library colors (e.g. the settings dialog list,
-  `#202124`) are painted black at runtime while this theme is active. The player's translucent
-  gradients stay as they are.
+  `#202124`) are painted black at runtime while this theme is active. Your focus color is never
+  painted over. The player's translucent gradients stay as they are.
 - Text is kept off-white (white → `#E6E6E6`) through the text dimmer, on top of your text brightness.
-- The selection is stored by DumbTube, not as an index into SmartTube's scheme list, so upstream
-  adding schemes never changes your theme. Picking any other scheme switches the DumbTube theme off.
+- The theme selection is stored by DumbTube, not as an index into SmartTube's scheme list, so
+  upstream adding schemes never changes your theme. Picking any other scheme switches the DumbTube
+  theme off.
+
+**How the colors are applied:** the accent is a theme overlay (`ThemeOverlay.DumbTube.Accent.<color>`
+in `dumbtube_palette.xml`) applied right after the activity theme. The focus color is set at runtime
+in the card presenters. Without the latter, Settings tiles and search tags would stay hard-coded white
+and the focused text would stay hard-coded dark grey. To add a color, add it to `OledNeonTheme.PALETTE`
+and add the matching `<color>`s and overlay `<style>` to `dumbtube_palette.xml`; both must use the same key.
 
 **Files**
 - `common/.../prefs/MainUIData.java`: `getColorSchemes()`, `getColorScheme()`, `setColorScheme()`
   (1 hook line each)
-- `common/.../misc/MotherActivity.java`: `onResume()` → `OledNeonTheme.attach(this)` (1 hook)
+- `common/.../misc/MotherActivity.java`: `onCreate()` → `OledNeonTheme.applyColors(this)` and
+  `onResume()` → `OledNeonTheme.attach(this)` (1 hook each)
+- `smarttubetv/.../presenter/VideoCardPresenter.java`, `ChannelCardPresenter.java`,
+  `SettingsCardPresenter.java`, `presenter/vineyard/TagPresenter.java`: 2 hook lines each
+  (`focusBackground` / `focusText`) after the selected colors are set
 - new: `common/.../dumbtube/OledNeonTheme.java`, `smarttubetv/src/main/res/values/dumbtube_styles.xml`,
-  `dumbtube_colors.xml`, `drawable/dumbtube_progress_bar_neon.xml`, `smarttubetv/src/stdumbtube/AndroidManifest.xml`
+  `dumbtube_colors.xml`, `dumbtube_palette.xml`, `drawable/dumbtube_progress_bar.xml`,
+  `smarttubetv/src/stdumbtube/AndroidManifest.xml`, test `common/src/test/.../dumbtube/OledNeonThemeTest.java`
 - `common/.../dumbtube/TextDimmer.java` (off-white cap)
 
-**Drop it when:** upstream ships a pure-black theme with a configurable accent color. Compare
+**Drop it when:** upstream ships a pure-black theme with configurable accent/focus colors. Compare
 upstream's OLED schemes in `MainUIData.initColorSchemes()` and `smarttubetv/src/main/res/values/styles.xml`.
 Drop just the runtime panel painting if upstream's dialog/list layouts start using theme colors
 instead of `lb_preference_decor_list_background`.
