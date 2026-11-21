@@ -1,7 +1,15 @@
 package com.liskovsoft.smartyoutubetv2.common.dumbtube;
 
+import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
+
 import org.junit.Test;
 
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -48,5 +56,50 @@ public class LiveSectionTest {
         assertFalse(LiveSection.isPastStream("Premiered 3 days ago", null));
         assertFalse(LiveSection.isPastStream(null, null));
         assertFalse(LiveSection.isPastStream("", ""));
+    }
+
+    @Test
+    public void subscriptionsPageDropsOnlyPastStreams() {
+        MediaItem upload = item("upload", false, "12:34", "Channel • 3K views • 2 days ago", 754_000);
+        MediaItem live = item("live", true, "LIVE", "Channel • 1.2K watching", 0);
+        MediaItem past = item("past", false, "2:13:45", "Channel • 12K views • Streamed 2 days ago", 8_025_000);
+        List<MediaItem> page = new ArrayList<>(Arrays.asList(live, upload, past, null));
+
+        LiveSection.removePastStreams(page);
+
+        assertEquals(Arrays.asList(live, upload, null), page);
+    }
+
+    @Test
+    public void readOnlyPageIsLeftAlone() {
+        MediaItem past = item("past", false, "2:13:45", "Channel • Streamed 2 days ago", 8_025_000);
+        List<MediaItem> page = Arrays.asList(past); // fixed-size: remove() not supported
+
+        LiveSection.removePastStreams(page);
+
+        assertEquals(1, page.size());
+    }
+
+    /** Minimal fake feed item. */
+    private static MediaItem item(String videoId, boolean live, String badge, String info, long durationMs) {
+        return (MediaItem) Proxy.newProxyInstance(MediaItem.class.getClassLoader(), new Class<?>[] {MediaItem.class},
+                (proxy, method, args) -> {
+                    switch (method.getName()) {
+                        case "getVideoId": return videoId;
+                        case "isLive": return live;
+                        case "getBadgeText": return badge;
+                        case "getSecondTitle": return info;
+                        case "getDurationMs": return durationMs;
+                        case "toString": return videoId;
+                        case "hashCode": return videoId.hashCode();
+                        case "equals": return proxy == args[0];
+                    }
+                    Class<?> type = method.getReturnType();
+                    if (type == boolean.class) return false;
+                    if (type == int.class) return 0;
+                    if (type == long.class) return 0L;
+                    if (type == double.class) return 0.0;
+                    return null;
+                });
     }
 }

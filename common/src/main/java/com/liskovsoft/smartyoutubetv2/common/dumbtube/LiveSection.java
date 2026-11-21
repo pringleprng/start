@@ -10,11 +10,14 @@ import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
 import com.liskovsoft.sharedutils.rx.RxHelper;
 import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.BrowseSection;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -32,7 +35,9 @@ import io.reactivex.Observable;
  * text in the video info line. English is the reliable one; a few other languages are matched on a
  * best-effort basis ({@link #STREAMED_MARKERS}).<br/>
  * SmartTube's "hide streams in Subscriptions" filter would drop the live items before we see them, so
- * it is lifted while this section loads ({@link #withLiveStreamsVisible}).<br/><br/>
+ * it is lifted while this section loads ({@link #withLiveStreamsVisible}).<br/>
+ * Optionally (default on) the normal Subscriptions page drops past live streams, since they are here
+ * ({@link #hidePastStreams}).<br/><br/>
  * Upstream hooks: BrowsePresenter initSectionMapping()/initRowAndGridMapping()/continueGroup(),
  * SidebarService.initSections(). Enabled once in the sidebar by {@link DumbTubeDefaults}.
  */
@@ -44,6 +49,7 @@ public final class LiveSection {
     private static final int MORE_MAX_PAGES = 12;
     private static final int MORE_TARGET = 20;
     private static final String NEXT_KEY_MARKER = "dumbtube_live_more";
+    private static final String KEY_HIDE_PAST_IN_SUBSCRIPTIONS = "subs_hide_past_streams";
     /** Lower case. "Streamed 2 days ago" in YouTube's UI languages (English is the tested one). */
     static final String[] STREAMED_MARKERS = {
             "streamed",         // en
@@ -83,7 +89,37 @@ public final class LiveSection {
     private LiveSection() {
     }
 
+    // ---------- Settings ----------
+
+    public static boolean isHidePastInSubscriptions(Context context) {
+        return DumbTubePrefs.instance(context).getBoolean(KEY_HIDE_PAST_IN_SUBSCRIPTIONS, true);
+    }
+
+    public static void appendSettings(Context context, AppDialogPresenter dialog) {
+        dialog.appendSingleSwitch(UiOptionItem.from(context.getString(R.string.dumbtube_subs_hide_past_streams),
+                option -> DumbTubePrefs.instance(context).setBoolean(KEY_HIDE_PAST_IN_SUBSCRIPTIONS, option.isSelected()),
+                isHidePastInSubscriptions(context)));
+    }
+
     // ---------- Hooks ----------
+
+    /**
+     * Hook (BrowsePresenter.initRowAndGridMapping): the Subscriptions page without past live streams.
+     * Items are removed in place (like SmartTube's own Shorts filter), so the group keeps its type and
+     * its continuation still works.
+     */
+    public static Observable<MediaGroup> hidePastStreams(Context context, Observable<MediaGroup> subscriptions) {
+        if (subscriptions == null || context == null) {
+            return subscriptions;
+        }
+
+        Context appContext = context.getApplicationContext();
+
+        return subscriptions.map(group -> {
+            removePastStreams(appContext, group);
+            return group;
+        });
+    }
 
     /**
      * Hook (BrowsePresenter.initSectionMapping).
@@ -143,7 +179,17 @@ public final class LiveSection {
     /**
      * Hook (BrowsePresenter.continueGroup): the past-streams row continues through the Subscriptions feed.
      */
-    public static Observable<MediaGroup> continuation(MediaGroup mediaGroup, Observable<MediaGroup> upstream) {
+    public static Observable<MediaGroup> continuation(Context context, MediaGroup mediaGroup, Observable<MediaGroup> upstream) {
+        if (mediaGroup != null && !(mediaGroup instanceof LiveGroup)
+                && mediaGroup.getType() == MediaGroup.TYPE_SUBSCRIPTIONS && upstream != null && context != null) {
+            // Next pages of the normal Subscriptions page
+            Context appContext = context.getApplicationContext();
+            return upstream.map(group -> {
+                removePastStreams(appContext, group);
+                return group;
+            });
+        }
+
         if (!(mediaGroup instanceof LiveGroup)) {
             return upstream;
         }
@@ -201,6 +247,33 @@ public final class LiveSection {
     }
 
     // ---------- Classification ----------
+
+    static void removePastStreams(Context context, @Nullable MediaGroup group) {
+        if (group == null || !isHidePastInSubscriptions(context)) {
+            return;
+        }
+
+        removePastStreams(group.getMediaItems());
+    }
+
+    static void removePastStreams(@Nullable List<MediaItem> items) {
+        if (items == null) {
+            return;
+        }
+
+        try {
+            for (Iterator<MediaItem> iterator = items.iterator(); iterator.hasNext(); ) {
+                MediaItem item = iterator.next();
+                if (item != null
+                        && !isLiveNow(item.isLive(), item.getBadgeText(), item.getSecondTitle(), item.getDurationMs())
+                        && isPastStream(item.getSecondTitle(), item.getProductionDate())) {
+                    iterator.remove();
+                }
+            }
+        } catch (UnsupportedOperationException e) {
+            // Read-only list: leave the page as it is
+        }
+    }
 
     private static void collect(@Nullable MediaGroup page, @Nullable List<MediaItem> live, List<MediaItem> past, Set<String> seen) {
         if (page == null || page.getMediaItems() == null) {
