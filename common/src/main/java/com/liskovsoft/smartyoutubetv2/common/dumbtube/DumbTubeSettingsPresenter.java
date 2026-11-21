@@ -38,6 +38,7 @@ public class DumbTubeSettingsPresenter extends BasePresenter<Void> {
         TopBarIcons.appendSettings(context, dialog);
         CardBadge.appendSettings(context, dialog);
         SidebarStyle.appendSettings(context, dialog);
+        ContentTop.appendSettings(context, dialog);
 
         dialog.showDialog(context.getString(R.string.dumbtube_settings_title), () -> OledNeonTheme.onSettingsClosed(context));
     }

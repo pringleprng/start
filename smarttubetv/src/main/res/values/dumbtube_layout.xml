@@ -1,11 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- [DumbTube] Content area (rows and grids) starts higher when the top-right clock + date are hidden.
-     SmartTube: browseRowsMarginTop 130dp (leaves room for the clock and date under it). The search icon in
-     the title bar ends at ~84dp (27dp padding + 52dp orb, focused zoom 1.2), so 90dp keeps a small gap.
-     Applied by common/.../dumbtube/ContentTop.applyTheme(). Both the rows alignment (BrowseSupportFragment)
-     and the grid top padding (Widget.Leanback.GridItems.VerticalGridView) read this attribute. -->
+     SmartTube: browseRowsMarginTop 130dp (room for the clock and date under it), title bar padding 27dp.
+     Each step also moves the title bar (search icon) up so it stays clear of the content:
+       search orb bottom = browsePaddingTop + 52dp, plus ~5dp when focused (1.2x zoom).
+     Both the rows alignment (BrowseSupportFragment) and the grid top padding
+     (Widget.Leanback.GridItems.VerticalGridView) read browseRowsMarginTop; only the title bar reads
+     browsePaddingTop. Applied by common/.../dumbtube/ContentTop.applyTheme(); keep the steps in sync
+     with ContentTop.STEPS_DP. -->
 <resources>
-    <style name="ThemeOverlay.DumbTube.Content.NoClock" parent="">
+    <!-- Tight: orb 12..64dp (69dp focused) -->
+    <style name="ThemeOverlay.DumbTube.Content.Top.70" parent="">
+        <item name="browsePaddingTop">12dp</item>
+        <item name="browseRowsMarginTop">70dp</item>
+    </style>
+    <!-- Compact (default): orb 16..68dp (73dp focused) -->
+    <style name="ThemeOverlay.DumbTube.Content.Top.76" parent="">
+        <item name="browsePaddingTop">16dp</item>
+        <item name="browseRowsMarginTop">76dp</item>
+    </style>
+    <!-- Medium: SmartTube's title bar, orb 27..79dp (84dp focused) -->
+    <style name="ThemeOverlay.DumbTube.Content.Top.90" parent="">
         <item name="browseRowsMarginTop">90dp</item>
     </style>
 </resources>
