@@ -22,6 +22,8 @@ import java.util.List;
  * - no colored circle behind the icon (switch, default on)<br/>
  * - own brightness setting, separate from the text brightness. The focused icon is shown at that
  *   brightness, the others at 60 % of it (with the circle gone, this plus leanback's zoom marks focus).<br/>
+ * - without the circle, the search icon (top left) is lined up with the sidebar icons: the row of title
+ *   buttons is shifted so the search icon's center matches the sidebar icons' center<br/>
  * The voice-search mic is left alone: its circle shows that it is listening.<br/>
  * Orbs are leanback SearchOrbViews; found at runtime by their "search_orb" + "icon" children, because
  * the common module doesn't depend on leanback.<br/><br/>
@@ -82,6 +84,9 @@ public final class TopBarIcons {
         private final View mDecor;
         private final int mOrbCircleId;
         private final int mOrbIconId;
+        private final int mTitleOrbId;
+        private final int mBrowsePaddingStartPx;
+        private final int[] mLocation = new int[2];
         private final List<WeakReference<ViewGroup>> mOrbs = new ArrayList<>();
         private boolean mScanNeeded = true;
 
@@ -90,6 +95,9 @@ public final class TopBarIcons {
             Context context = decor.getContext();
             mOrbCircleId = context.getResources().getIdentifier("search_orb", "id", context.getPackageName());
             mOrbIconId = context.getResources().getIdentifier("icon", "id", context.getPackageName());
+            mTitleOrbId = context.getResources().getIdentifier("title_orb", "id", context.getPackageName());
+            int paddingId = context.getResources().getIdentifier("lb_browse_padding_start", "dimen", context.getPackageName());
+            mBrowsePaddingStartPx = paddingId != 0 ? context.getResources().getDimensionPixelSize(paddingId) : 0;
         }
 
         void rescan() {
@@ -175,6 +183,36 @@ public final class TopBarIcons {
                 if (icon.getImageAlpha() != alpha) {
                     icon.setImageAlpha(alpha);
                 }
+
+                if (orb.getId() == mTitleOrbId && mTitleOrbId != 0) {
+                    alignWithSidebar(orb, icon, noBackground);
+                }
+            }
+        }
+
+        /**
+         * Shift the title buttons so the search icon's center sits on the sidebar icons' center:
+         * sidebar icons start at leanback's browsePaddingStart and are SidebarStyle.getIconSizeDp() wide.
+         */
+        private void alignWithSidebar(ViewGroup orb, ImageView icon, boolean enabled) {
+            if (!(orb.getParent() instanceof View) || icon.getWidth() == 0 || mBrowsePaddingStartPx == 0) {
+                return;
+            }
+
+            View buttons = (View) orb.getParent(); // row with search, account, language... buttons
+            float current = buttons.getTranslationX();
+            float wanted = 0;
+
+            if (enabled) {
+                icon.getLocationInWindow(mLocation);
+                float iconCenter = mLocation[0] + icon.getWidth() * orb.getScaleX() / 2f - current;
+                float density = icon.getResources().getDisplayMetrics().density;
+                float sidebarIconCenter = mBrowsePaddingStartPx + SidebarStyle.getIconSizeDp(icon.getContext()) * density / 2f;
+                wanted = Math.round(sidebarIconCenter - iconCenter);
+            }
+
+            if (Math.abs(wanted - current) >= 1) {
+                buttons.setTranslationX(wanted);
             }
         }
     }
