@@ -93,7 +93,7 @@ Conflicts can only happen in the few upstream files that carry a hook. List them
 | `common/.../controllers/HQDialogController.java` | `addCategoryInt(TextDimmer.createPlayerTextCategory(...))` in `onHighQualityClicked()` |
 | `common/.../presenters/BrowsePresenter.java` | `LiveSection` lines in `initSectionMapping()`, `initRowAndGridMapping()` (LIVE! rows; Subscriptions filter right after the Subscriptions grid line) and after `continueGroupObserve(...)` in `continueGroup()` |
 | `common/.../presenters/service/SidebarService.java` | `mDefaultSections.put(... LiveSection.SECTION_ID)` after the Subscriptions line in `initSections()` |
-| `smarttubetv/.../presenter/IconHeaderItemPresenter.java` | `SidebarStyle.styleHeader(iconView, label)` in `onBindViewHolder()` |
+| `smarttubetv/.../presenter/IconHeaderItemPresenter.java` | `SidebarStyle.styleHeader(iconView, ..., mIconUrl != null)` in `onBindViewHolder()`, right after `iconView` is found (before the Glide load) |
 | `smarttubetv/.../browse/video/MultipleRowsFragment.java` | `LiveGridRows.update(...)` after the `group.isEmpty()` check in `update()`; `LiveGridRows.onItemSelected(...)` after `checkScrollEnd(...)` |
 | `.gitignore` | 4 lines at the end |
 

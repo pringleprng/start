@@ -64,6 +64,7 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
         rootView.setFocusable(true);
 
         ImageView iconView = rootView.findViewById(R.id.header_icon);
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.SidebarStyle.styleHeader(iconView, rootView.findViewById(R.id.header_label), mIconUrl != null); // [DumbTube]
         if (iconView != null) {
             if (mIconUrl != null) {
                 Glide.with(rootView.getContext())
@@ -83,7 +84,6 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
         if (label != null) {
             label.setText(headerItem.getName());
         }
-        com.liskovsoft.smartyoutubetv2.common.dumbtube.SidebarStyle.styleHeader(iconView, label); // [DumbTube]
     }
 
     @Override
