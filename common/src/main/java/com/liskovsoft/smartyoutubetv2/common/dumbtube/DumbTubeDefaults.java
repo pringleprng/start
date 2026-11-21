@@ -2,6 +2,8 @@ package com.liskovsoft.smartyoutubetv2.common.dumbtube;
 
 import android.content.Context;
 
+import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.service.SidebarService;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
 
@@ -13,6 +15,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
  */
 public final class DumbTubeDefaults {
     private static final String KEY_CLOCK_HIDDEN = "defaults_clock_hidden_v1";
+    private static final String KEY_LIVE_SECTION = "defaults_live_section_v1";
 
     private DumbTubeDefaults() {
     }
@@ -34,6 +37,42 @@ public final class DumbTubeDefaults {
             GeneralData.instance(context).persistNow();
             PlayerData.instance(context).persistNow();
             prefs.setBoolean(KEY_CLOCK_HIDDEN, true);
+        }
+
+        if (!prefs.getBoolean(KEY_LIVE_SECTION, false)) {
+            showLiveSectionAfterSubscriptions(context);
+            prefs.setBoolean(KEY_LIVE_SECTION, true);
+        }
+    }
+
+    /**
+     * Fresh installs get LIVE! from SidebarService's default list (it sits after Subscriptions there).
+     * Existing installs only have the sections they saved, so add it once, right below Subscriptions.
+     */
+    private static void showLiveSectionAfterSubscriptions(Context context) {
+        SidebarService sidebar = SidebarService.instance(context);
+
+        if (sidebar == null || sidebar.isSectionPinned(LiveSection.SECTION_ID)) {
+            return;
+        }
+
+        sidebar.enableSection(LiveSection.SECTION_ID, true);
+
+        for (int guard = 0; guard < 50; guard++) {
+            int subscriptions = sidebar.getSectionIndex(MediaGroup.TYPE_SUBSCRIPTIONS);
+            int live = sidebar.getSectionIndex(LiveSection.SECTION_ID);
+
+            if (subscriptions < 0 || live < 0 || live == subscriptions + 1) {
+                break;
+            }
+
+            if (live > subscriptions + 1 && sidebar.canMoveSectionUp(LiveSection.SECTION_ID)) {
+                sidebar.moveSectionUp(LiveSection.SECTION_ID);
+            } else if (live < subscriptions && sidebar.canMoveSectionDown(LiveSection.SECTION_ID)) {
+                sidebar.moveSectionDown(LiveSection.SECTION_ID);
+            } else {
+                break;
+            }
         }
     }
 }
