@@ -41,4 +41,8 @@
     <string translatable="false" name="dumbtube_badge_original">SmartTube original (white text, black box)</string>
     <string translatable="false" name="dumbtube_badge_black">Black</string>
     <string translatable="false" name="dumbtube_badge_no_outline">No outline</string>
+
+    <!-- Player text brightness -->
+    <string translatable="false" name="dumbtube_player_text_brightness">Player text brightness (title, times, descriptions)</string>
+    <string translatable="false" name="dumbtube_player_text_same">Same as interface text</string>
 </resources>
