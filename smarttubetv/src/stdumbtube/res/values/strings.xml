@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DumbTube] Flavor branding. Overrides values from smarttubetv/src/main and from library modules. -->
+<resources>
+    <string translatable="false" name="app_name"><![CDATA[DumbTube]]></string>
+    <string translatable="false" name="browse_title"><![CDATA[DumbTube]]></string>
+    <!-- leanbackassistant (global search) -->
+    <string translatable="false" name="search_label">DumbTube</string>
+    <string translatable="false" name="settings_description">DumbTube Videos</string>
+    <!-- Must match AndroidManifest provider authority (${applicationId}) and xml/searchable.xml -->
+    <string translatable="false" name="search_authority">com.dumbtube.tv</string>
+</resources>
