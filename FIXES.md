@@ -325,7 +325,8 @@ by itself; use the settings.
 `[DumbTube] Hide past live streams from the Subscriptions page`,
 `[DumbTube] Subscriptions page: hide live streams too, LIVE! keeps all`,
 `[DumbTube] Subscriptions page: hide upcoming streams too`,
-`[DumbTube] LIVE!: add an Upcoming row`
+`[DumbTube] LIVE!: add an Upcoming row`,
+`[DumbTube] LIVE!: grid per category, scrolling down`
 
 **What it does**
 - A new sidebar section **LIVE!** with its own icon (the Subscriptions stack with a broadcast symbol),
@@ -342,6 +343,10 @@ by itself; use the settings.
     6 feed pages (about 30 streams). Scrolling to the end of the row loads older feed pages, so it
     keeps going back through the whole feed.
 - Shorts and normal uploads are left out.
+- **Layout: a grid per category, scrolling down** (like the Subscriptions page), not one sideways row
+  per category. Each category is cut into lines with the Subscriptions grid's number of columns; only
+  the first line has the title. More past streams fill the last line and add new lines. Selecting a
+  card on the last line of a category loads more (`tv/dumbtube/LiveGridRows`).
 - **The normal Subscriptions page hides all streams: live, upcoming (scheduled streams and
   premieres) and finished.** They are all in LIVE! instead. Setting:
   Settings › DumbTube › *Subscriptions: hide all streams*, on by default. This covers the first page
@@ -362,7 +367,10 @@ YouTube language, add its word there. Test: `LiveSectionTest` (plain JUnit).
 - `common/.../presenters/BrowsePresenter.java`: `initSectionMapping()` (1), `initRowAndGridMapping()` (2:
   LIVE! rows, Subscriptions filter), `continueGroup()` (1) hook lines
 - `common/.../presenters/service/SidebarService.java`: `initSections()` (1 hook line after Subscriptions)
-- new: `common/.../dumbtube/LiveSection.java`, `drawable-nodpi/dumbtube_icon_live_subs.png`,
+- `smarttubetv/.../browse/video/MultipleRowsFragment.java`: `update()` and the item-selected listener
+  (1 hook line each, grid layout)
+- new: `common/.../dumbtube/LiveSection.java`, `smarttubetv/.../tv/dumbtube/LiveGridRows.java`,
+  `drawable-nodpi/dumbtube_icon_live_subs.png`,
   test `common/src/test/.../dumbtube/LiveSectionTest.java`
 - `common/.../dumbtube/DumbTubeDefaults.java` (one-time sidebar entry)
 
