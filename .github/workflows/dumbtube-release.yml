@@ -1,6 +1,10 @@
 # [DumbTube] Build a signed DumbTube APK and publish it as a GitHub Release.
 #
 # Run it from the Actions tab: "DumbTube Release" -> "Run workflow" -> pick your DumbTube branch.
+# It also runs by itself after a successful "DumbTube Check" on the DumbTube branch, but only releases
+# when that commit's SmartTube version has no DumbTube release yet. That is what happens after the daily
+# scheduled task integrated a new SmartTube release (UPDATING.md). DumbTube-only changes are released by
+# hand. If you rename the DumbTube branch, update `branches:` below.
 # Needs 2 repository secrets (see RELEASING.md):
 #   DUMBTUBE_KEYSTORE_BASE64, DUMBTUBE_KEYSTORE_PASSWORD
 # Optional: DUMBTUBE_KEY_ALIAS (default "dumbtube"), DUMBTUBE_KEY_PASSWORD (default = keystore password)
@@ -30,6 +34,10 @@ on:
         description: 'Extra line for the release notes / in-app changelog (optional)'
         required: false
         default: ''
+  workflow_run:
+    workflows: [ 'DumbTube Check' ]
+    types: [ completed ]
+    branches: [ 'ccr-556d74fb-n3xrrs' ]
 
 permissions:
   contents: write
@@ -39,7 +47,48 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Manual runs always release. Automatic runs (after DumbTube Check) only for a new SmartTube version.
+  # The whole workflow is serialized (concurrency above), so a run sees the tags of the run before it.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.decide.outputs.go }}
+      sha: ${{ steps.decide.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0 # tags
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          go=false
+          up_name=$(grep -m1 -E '^\s*versionName\s+"' smarttubetv/build.gradle | sed -E 's/.*"(.*)".*/\1/')
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            go=true
+          elif [ "$CONCLUSION" != "success" ] || [ "$RUN_EVENT" != "push" ] || [ "$RUN_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "DumbTube Check didn't pass on a push to this repo: no release."
+          elif git tag -l "v${up_name}-dt*" | grep -q .; then
+            echo "SmartTube ${up_name} already has a DumbTube release: nothing to do (release DumbTube-only changes by hand)."
+          else
+            echo "SmartTube ${up_name} has no DumbTube release yet: releasing."
+            go=true
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "Release: $go (SmartTube ${up_name})" >> "$GITHUB_STEP_SUMMARY"
+
   release:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
     env:
       DUMBTUBE_REPO: ${{ github.repository }}
@@ -48,6 +97,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          ref: ${{ needs.gate.outputs.sha }}
           submodules: recursive
           fetch-depth: 0 # tags are needed to pick the next revision
 
@@ -227,7 +277,7 @@ jobs:
         run: |
           gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$(git rev-parse HEAD)" \
             --title "DumbTube $NAME" \
             --notes-file release-notes.md \
             --latest

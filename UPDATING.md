@@ -14,8 +14,12 @@ steps below by itself. If there's no new stable tag, it stops immediately.
 
 If there is one, it does steps 1–5: backup branch, rebase, conflicts resolved by keeping upstream's code
 and re-adding the hook lines, hook count, diff check, build, tests and FIXES.md. Only when all of that
-passes does it push the branch (backup pushed as `backup/dumbtube-<old tag>`). It then waits for
-*DumbTube Check* and runs *DumbTube Release*, so the in-app updater offers the new version.
+passes does it push the branch (backup pushed as `backup/dumbtube-<old tag>`).
+
+GitHub takes over from there. *DumbTube Check* builds and runs all tests. When it passes, *DumbTube
+Release* starts by itself and publishes `v<new version>-dt1`, which the in-app updater offers. It does
+that only when the SmartTube version has no DumbTube release yet; releases for DumbTube-only changes
+stay manual (Actions → DumbTube Release → Run workflow).
 
 If anything fails, it pushes its attempt to `dumbtube-update-<new tag>` instead, leaves the DumbTube
 branch alone, and reports what broke. It never drops a DumbTube change: features that upstream may now
