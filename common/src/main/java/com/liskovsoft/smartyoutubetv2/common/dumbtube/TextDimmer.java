@@ -129,7 +129,7 @@ public final class TextDimmer {
      * Theme cap applied on top of the user level (e.g. OLED theme keeps white text off-white).
      */
     static float getThemeTextCap(Context context) {
-        return 1f;
+        return OledNeonTheme.isSelected(context) ? OledNeonTheme.TEXT_CAP : 1f;
     }
 
     private static void ensureLoaded(Context context) {

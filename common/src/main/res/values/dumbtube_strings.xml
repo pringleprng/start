@@ -24,4 +24,7 @@
     <!-- Text dimming -->
     <string translatable="false" name="dumbtube_text_brightness">Text brightness (all interface text)</string>
     <string translatable="false" name="dumbtube_caption_brightness">Caption brightness</string>
+
+    <!-- OLED neon theme -->
+    <string translatable="false" name="dumbtube_theme_oled_neon">OLED (neon green) - DumbTube</string>
 </resources>
