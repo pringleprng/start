@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [DumbTube] Content area (rows and grids) starts higher when the top-right clock + date are hidden.
+     SmartTube: browseRowsMarginTop 130dp (leaves room for the clock and date under it). The search icon in
+     the title bar ends at ~84dp (27dp padding + 52dp orb, focused zoom 1.2), so 90dp keeps a small gap.
+     Applied by common/.../dumbtube/ContentTop.applyTheme(). Both the rows alignment (BrowseSupportFragment)
+     and the grid top padding (Widget.Leanback.GridItems.VerticalGridView) read this attribute. -->
+<resources>
+    <style name="ThemeOverlay.DumbTube.Content.NoClock" parent="">
+        <item name="browseRowsMarginTop">90dp</item>
+    </style>
+</resources>
