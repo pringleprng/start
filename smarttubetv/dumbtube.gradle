@@ -1,0 +1,75 @@
+// [DumbTube] Fork-specific build configuration.
+//
+// Applied from the last line of smarttubetv/build.gradle so that upstream merges only ever
+// touch that single line. Adds the "stdumbtube" product flavor:
+//   - applicationId com.dumbtube.tv (installs next to official SmartTube)
+//   - versionCode = <upstream versionCode> * 100 + <DumbTube revision>
+//   - versionName = <upstream versionName>-dt<revision>
+//   - APK name   = DumbTube-<versionName>.apk (universal) / DumbTube-<versionName>-<abi>.apk
+//
+// Build: ./gradlew :smarttubetv:assembleStdumbtubeRelease -PdumbtubeRevision=1
+//
+// Inputs (first match wins):
+//   repo slug: env DUMBTUBE_REPO, env GITHUB_REPOSITORY, -PdumbtubeRepo, dumbtube.properties "repo"
+//   revision : -PdumbtubeRevision, env DUMBTUBE_REVISION, 0
+
+def dtProps = new Properties()
+def dtPropsFile = rootProject.file('dumbtube.properties')
+if (dtPropsFile.exists()) {
+    dtPropsFile.withInputStream { dtProps.load(it) }
+}
+
+def dtRepo = (System.getenv('DUMBTUBE_REPO')
+        ?: System.getenv('GITHUB_REPOSITORY')
+        ?: project.findProperty('dumbtubeRepo')
+        ?: dtProps.getProperty('repo', 'pringleprng/start')).toString().trim()
+
+def dtRevision = (project.findProperty('dumbtubeRevision')
+        ?: System.getenv('DUMBTUBE_REVISION')
+        ?: '0').toString().trim().toInteger()
+
+if (dtRevision < 0 || dtRevision > 99) {
+    throw new GradleException("[DumbTube] dumbtubeRevision must be between 0 and 99, got ${dtRevision}")
+}
+
+def upstreamVersionCode = android.defaultConfig.versionCode
+def upstreamVersionName = android.defaultConfig.versionName
+
+android {
+    productFlavors {
+        stdumbtube {
+            applicationId 'com.dumbtube.tv'
+            targetSdkVersion project.properties.compileSdkVersion
+            // Library modules only have stbeta/ststable/stfdroid. Use their stable variants.
+            matchingFallbacks = ['ststable']
+            versionCode upstreamVersionCode * 100 + dtRevision
+            versionName "${upstreamVersionName}-dt${dtRevision}"
+            resValue 'string', 'dumbtube_repo', dtRepo
+            resValue 'string', 'dumbtube_update_url', "https://github.com/${dtRepo}/releases/latest/download/dumbtube.json"
+        }
+    }
+
+    // Registered after upstream's naming callback in build.gradle, so it wins for this flavor.
+    applicationVariants.all { variant ->
+        if (variant.flavorName != 'stdumbtube') {
+            return
+        }
+        variant.outputs.all { output ->
+            def abi = output.getFilter('ABI') // OutputFile.ABI (class not visible from applied scripts)
+            output.outputFileName = abi == null
+                    ? "DumbTube-${variant.versionName}.apk"
+                    : "DumbTube-${variant.versionName}-${abi}.apk"
+        }
+    }
+}
+
+// Lets CI read the computed values: ./gradlew -q :smarttubetv:dumbtubeVersion
+tasks.register('dumbtubeVersion') {
+    doLast {
+        println "versionName=${upstreamVersionName}-dt${dtRevision}"
+        println "versionCode=${upstreamVersionCode * 100 + dtRevision}"
+        println "upstreamVersionName=${upstreamVersionName}"
+        println "upstreamVersionCode=${upstreamVersionCode}"
+        println "repo=${dtRepo}"
+    }
+}
