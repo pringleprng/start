@@ -226,6 +226,13 @@ public final class OledNeonTheme {
     }
 
     /**
+     * A DumbTube setting changed that only applies to new screens.
+     */
+    static void requestRestart() {
+        sRestartNeeded = true;
+    }
+
+    /**
      * Called when the DumbTube settings dialog closes: colors apply to new screens, so ask for a restart.
      */
     public static void onSettingsClosed(Context context) {
