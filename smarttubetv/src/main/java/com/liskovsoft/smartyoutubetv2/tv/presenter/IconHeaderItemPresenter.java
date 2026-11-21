@@ -83,6 +83,7 @@ public class IconHeaderItemPresenter extends RowHeaderPresenter {
         if (label != null) {
             label.setText(headerItem.getName());
         }
+        com.liskovsoft.smartyoutubetv2.common.dumbtube.SidebarStyle.styleHeader(iconView, label); // [DumbTube]
     }
 
     @Override
