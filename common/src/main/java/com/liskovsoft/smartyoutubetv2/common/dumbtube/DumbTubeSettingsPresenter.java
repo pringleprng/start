@@ -30,6 +30,7 @@ public class DumbTubeSettingsPresenter extends BasePresenter<Void> {
         AppDialogPresenter dialog = AppDialogPresenter.instance(context);
 
         // Feature sections (one line per DumbTube feature)
+        ChannelCaptions.instance(context).appendSettings(dialog);
 
         dialog.showDialog(context.getString(R.string.dumbtube_settings_title));
     }

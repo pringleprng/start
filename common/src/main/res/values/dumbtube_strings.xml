@@ -2,4 +2,19 @@
 <!-- [DumbTube] Strings for DumbTube-only features (English only, not sent to Crowdin). -->
 <resources>
     <string translatable="false" name="dumbtube_settings_title">DumbTube</string>
+
+    <!-- Per-channel captions -->
+    <string translatable="false" name="dumbtube_captions_title">Captions per channel</string>
+    <string translatable="false" name="dumbtube_captions_enable">DumbTube: remember captions per channel (on/off, language, auto-translate)</string>
+    <string translatable="false" name="dumbtube_captions_default">Default captions for channels without saved settings</string>
+    <string translatable="false" name="dumbtube_captions_off">Off</string>
+    <string translatable="false" name="dumbtube_captions_auto">%s (auto / translated)</string>
+    <string translatable="false" name="dumbtube_captions_not_saved">nothing saved, using default: %s</string>
+    <string translatable="false" name="dumbtube_captions_saved_state">This channel: %s</string>
+    <string translatable="false" name="dumbtube_captions_default_state">Default for other channels: %s</string>
+    <string translatable="false" name="dumbtube_captions_forget_channel">Forget captions for %s</string>
+    <string translatable="false" name="dumbtube_captions_forgotten">Captions for %s reset to default</string>
+    <string translatable="false" name="dumbtube_captions_set_default">Use current captions as default for other channels</string>
+    <string translatable="false" name="dumbtube_captions_forget_all">Forget saved captions of all channels (%d saved)</string>
+    <string translatable="false" name="dumbtube_captions_forgotten_all">Per-channel captions cleared</string>
 </resources>
