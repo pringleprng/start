@@ -129,7 +129,8 @@ your backups. It never needs to be inside the repository folder.
 **Automatic releases:** after every successful *DumbTube Check* on the DumbTube branch, *DumbTube
 Release* also starts by itself. It only publishes when that commit's SmartTube version has no DumbTube
 release yet, i.e. right after a new SmartTube version was integrated (the daily scheduled task, see
-UPDATING.md). Otherwise it stops at its first job ("gate"). The branch name is in the workflow's
+UPDATING.md). Otherwise it stops at its first job ("gate"). It never makes the very first release:
+run that one by hand, with *revision* higher than the dtN you sideloaded (e.g. `15` after dt14). The branch name is in the workflow's
 `workflow_run` → `branches:`; change it there if you rename the branch.
 
 If the workflow fails:

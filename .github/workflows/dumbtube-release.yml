@@ -2,7 +2,8 @@
 #
 # Run it from the Actions tab: "DumbTube Release" -> "Run workflow" -> pick your DumbTube branch.
 # It also runs by itself after a successful "DumbTube Check" on the DumbTube branch, but only releases
-# when that commit's SmartTube version has no DumbTube release yet. That is what happens after the daily
+# when that commit's SmartTube version has no DumbTube release yet (and some DumbTube release exists: the
+# first one is made by hand). That is what happens after the daily
 # scheduled task integrated a new SmartTube release (UPDATING.md). DumbTube-only changes are released by
 # hand. If you rename the DumbTube branch, update `branches:` below.
 # Needs 2 repository secrets (see RELEASING.md):
@@ -77,6 +78,8 @@ jobs:
             go=true
           elif [ "$CONCLUSION" != "success" ] || [ "$RUN_EVENT" != "push" ] || [ "$RUN_REPO" != "$GITHUB_REPOSITORY" ]; then
             echo "DumbTube Check didn't pass on a push to this repo: no release."
+          elif ! git tag -l 'v*-dt*' | grep -q .; then
+            echo "No DumbTube release yet: the first one is made by hand (RELEASING.md), so it gets the right revision."
           elif git tag -l "v${up_name}-dt*" | grep -q .; then
             echo "SmartTube ${up_name} already has a DumbTube release: nothing to do (release DumbTube-only changes by hand)."
           else
