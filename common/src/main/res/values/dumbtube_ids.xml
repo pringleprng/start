@@ -5,4 +5,5 @@
     <item type="id" name="dumbtube_oled_guard" />
     <item type="id" name="dumbtube_top_bar_icons" />
     <item type="id" name="dumbtube_card_badge" />
+    <item type="id" name="dumbtube_sidebar_zoom" />
 </resources>
