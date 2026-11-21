@@ -49,8 +49,9 @@
     <!-- LIVE! section -->
     <string translatable="false" name="dumbtube_live_section">LIVE!</string>
     <string translatable="false" name="dumbtube_live_now">Live now</string>
+    <string translatable="false" name="dumbtube_live_upcoming">Upcoming</string>
     <string translatable="false" name="dumbtube_live_past">Past live streams</string>
-    <string translatable="false" name="dumbtube_subs_hide_streams">Subscriptions: hide all streams, live, upcoming and past (live and past ones are in LIVE!)</string>
+    <string translatable="false" name="dumbtube_subs_hide_streams">Subscriptions: hide all streams, live, upcoming and past (they are in LIVE!)</string>
 
     <!-- Sidebar style -->
     <string translatable="false" name="dumbtube_sidebar_icons_only">Sidebar: icons only (hide the words)</string>
