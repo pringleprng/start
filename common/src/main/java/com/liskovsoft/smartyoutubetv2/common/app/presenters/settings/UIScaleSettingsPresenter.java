@@ -42,6 +42,7 @@ public class UIScaleSettingsPresenter extends BasePresenter<Void> {
     }
 
     private void appendVideoGridScale(AppDialogPresenter settingsPresenter) {
+        if (com.liskovsoft.smartyoutubetv2.common.dumbtube.CardsPerLine.appendSettings(getContext(), settingsPresenter)) return; // [DumbTube]
         List<OptionItem> options = new ArrayList<>();
 
         for (float scale : new float[] {0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.35f, 1.4f, 1.5f}) {

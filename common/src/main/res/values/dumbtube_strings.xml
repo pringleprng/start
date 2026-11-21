@@ -64,4 +64,9 @@
     <string translatable="false" name="dumbtube_top_compact">Compact (%d dp, default)</string>
     <string translatable="false" name="dumbtube_top_medium">Medium (%d dp)</string>
     <string translatable="false" name="dumbtube_top_smarttube">SmartTube (%d dp)</string>
+
+    <!-- Cards per line (replaces SmartTube's Video grid scale) -->
+    <string translatable="false" name="dumbtube_cards_per_line">Cards per line (card size)</string>
+    <string translatable="false" name="dumbtube_cards_default">%d (default)</string>
+    <string translatable="false" name="dumbtube_msg_restart_cards">Restarting to apply the new card size…</string>
 </resources>

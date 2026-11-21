@@ -181,6 +181,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     }
 
     public float getVideoGridScale() {
+        if (Build.VERSION.SDK_INT > 19 && com.liskovsoft.smartyoutubetv2.common.dumbtube.CardsPerLine.isSet(mContext)) return com.liskovsoft.smartyoutubetv2.common.dumbtube.CardsPerLine.getScale(mContext, mUIScale); // [DumbTube]
         // Fixing the bug with chaotic cards positioning on Android 4.4 devices.
         return Build.VERSION.SDK_INT <= 19 ? 1.2f : mVideoGridScale;
     }
