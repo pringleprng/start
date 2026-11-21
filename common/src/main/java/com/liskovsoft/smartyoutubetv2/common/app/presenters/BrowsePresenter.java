@@ -227,6 +227,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
 
         mGridMapping.put(MediaGroup.TYPE_SHORTS, getContentService().getShortsObserve());
         mGridMapping.put(MediaGroup.TYPE_SUBSCRIPTIONS, getContentService().getSubscriptionsObserve());
+        mGridMapping.put(MediaGroup.TYPE_SUBSCRIPTIONS, com.liskovsoft.smartyoutubetv2.common.dumbtube.LiveSection.hidePastStreams(getContext(), mGridMapping.get(MediaGroup.TYPE_SUBSCRIPTIONS))); // [DumbTube]
         mGridMapping.put(MediaGroup.TYPE_HISTORY, getContentService().getHistoryObserve());
         mGridMapping.put(MediaGroup.TYPE_CHANNEL_UPLOADS, getContentService().getSubscribedChannelsByNewContentObserve());
         mGridMapping.put(MediaGroup.TYPE_NOTIFICATIONS, getNotificationsService().getNotificationItemsObserve());
@@ -854,7 +855,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         //}
 
         continuation = getContentService().continueGroupObserve(mediaGroup);
-        continuation = com.liskovsoft.smartyoutubetv2.common.dumbtube.LiveSection.continuation(mediaGroup, continuation); // [DumbTube]
+        continuation = com.liskovsoft.smartyoutubetv2.common.dumbtube.LiveSection.continuation(getContext(), mediaGroup, continuation); // [DumbTube]
 
         Disposable continueAction = continuation
                 .subscribe(

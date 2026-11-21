@@ -50,6 +50,7 @@
     <string translatable="false" name="dumbtube_live_section">LIVE!</string>
     <string translatable="false" name="dumbtube_live_now">Live now</string>
     <string translatable="false" name="dumbtube_live_past">Past live streams</string>
+    <string translatable="false" name="dumbtube_subs_hide_past_streams">Subscriptions: hide past live streams (they are in LIVE!)</string>
 
     <!-- Sidebar style -->
     <string translatable="false" name="dumbtube_sidebar_icons_only">Sidebar: icons only (hide the words)</string>
