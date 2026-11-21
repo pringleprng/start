@@ -83,10 +83,12 @@ Conflicts can only happen in the few upstream files that carry a hook. List them
 | `common/.../controllers/PlayerUIController.java` | 5 `ChannelCaptions...` lines in `onSubtitleClicked()` / `onSubtitleLongClicked()` |
 | `common/.../controllers/ErrorFixerController.java` | `ChannelCaptions...suspendFor(...)` in `disableSubtitles()` |
 | `common/.../app/models/data/Video.java` | first line of `isSectionPlaylistEnabled()` |
-| `common/.../misc/MotherActivity.java` | `OledNeonTheme.applyColors(this)` after `initTheme()` in `onCreate()`; `TextDimmer.attach(this)` + `OledNeonTheme.attach(this)` in `onResume()` |
+| `common/.../misc/MotherActivity.java` | `DumbTubeDefaults.applyOnce(this)` before and `OledNeonTheme.applyColors(this)` after `initDpi(); initTheme();` in `onCreate()`; `TextDimmer.attach(this)`, `OledNeonTheme.attach(this)`, `TopBarIcons.attach(this)` in `onResume()` |
 | `common/.../exoplayer/other/SubtitleManager.java` | `TextDimmer.dimCaptionStyle(...)` before both `mSubtitleView.setStyle(style)` |
 | `common/.../prefs/MainUIData.java` | one line at the top of `getColorSchemes()`, `getColorScheme()`, `setColorScheme()` |
 | `smarttubetv/.../presenter/VideoCardPresenter.java`, `ChannelCardPresenter.java`, `SettingsCardPresenter.java`, `presenter/vineyard/TagPresenter.java` | 2 lines (`focusBackground`/`focusText`) after the selected card colors are set |
+| `smarttubetv/.../widgets/complexcardview/ComplexImageView.java` | `CardBadge.restyle(mBadgeText)` in `setBadgeText()` and `setBadgeColor()` |
+| `common/.../controllers/HQDialogController.java` | `addCategoryInt(TextDimmer.createPlayerTextCategory(...))` in `onHighQualityClicked()` |
 | `.gitignore` | 4 lines at the end |
 
 For each conflict: **take upstream's version of the code, then re-add the one `// [DumbTube]` line**
@@ -110,9 +112,9 @@ git submodule update --init --recursive
 
 ```bash
 grep -rn "\[DumbTube\]" --include=*.java --include=build.gradle . | grep -v "/dumbtube/\|/build/" | wc -l
-# expected: 27  (PlayerUIController 5, MainUIData 3, MotherActivity 3, AppDataSourceManager 2,
-#                SubtitleManager 2, 4 card presenters x 2, VideoStateController 1,
-#                ErrorFixerController 1, Video 1, build.gradle 1)
+# expected: 32  (PlayerUIController 5, MotherActivity 5, MainUIData 3, AppDataSourceManager 2,
+#                SubtitleManager 2, ComplexImageView 2, 4 card presenters x 2, VideoStateController 1,
+#                ErrorFixerController 1, HQDialogController 1, Video 1, build.gradle 1)
 git diff --stat "$NEW" HEAD -- $(git diff --name-only "$NEW" HEAD | grep -vi dumbtube)
 # expected: only the files from the table above, only added lines
 ```
