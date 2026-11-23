@@ -16,7 +16,8 @@ What it does:
      new enough for Inkling 2, placed where the H3 tab makes TextGen use it
   4. Inkling 2 Mini Uncensored GGUF + its mmproj (vision) from Hugging Face
   5. the H3 I2V Director tab, Chat template and preset
-  6. settings (auto-load, GPU profile), CMD_FLAGS.txt, a start script and an app-menu entry
+  6. settings (auto-load with the small-VRAM profile, so it fits next to Fooocus or other GPU apps),
+     CMD_FLAGS.txt, a start script and an app-menu entry
 
 Run it again any time: finished downloads are skipped, broken ones resumed.
 Optional environment variables: GITHUB_TOKEN (GitHub rate limit), HF_TOKEN (gated models).
@@ -209,8 +210,8 @@ def check_ram() -> None:
         return
     say(f"  ✓ {total_gb:.0f} GB RAM")
     if total_gb < 30:
-        warn("Less than 32 GB RAM: use a smaller quant (--quant IQ4_XS or Q3_K_M), and expect "
-             "the 'Share GPU with Fooocus' profile to be tight.")
+        warn("Less than 32 GB RAM: the small-VRAM profile keeps most of the model in RAM, so use a smaller "
+             "quant (--quant IQ4_XS or Q3_K_M).")
 
 
 # --------------------------------------------------------------------------------------
@@ -470,8 +471,8 @@ def main(argv=None) -> int:
     ap.add_argument("--dir", default=str(Path.home() / "AI" / "textgen"), help="install folder (default ~/AI/textgen)")
     ap.add_argument("--repo", default=DEFAULT_REPO, help=f"Hugging Face GGUF repo (default {DEFAULT_REPO})")
     ap.add_argument("--quant", default="Q4_K_M", help="quant to download (default Q4_K_M)")
-    ap.add_argument("--profile", choices=("auto", "full", "share"), default="auto",
-                    help="GPU profile: auto = share the GPU while Fooocus runs (default)")
+    ap.add_argument("--profile", choices=("small", "full"), default="small",
+                    help="GPU profile: small = little VRAM, runs next to Fooocus (default); full = fastest")
     ap.add_argument("--textgen-tag", default="latest")
     ap.add_argument("--llama-tag", default="latest")
     ap.add_argument("--skip-model", action="store_true", help="don't download the model")
@@ -509,7 +510,7 @@ def main(argv=None) -> int:
 
     step("Done")
     say(f"Start 'TextGen H3 Director' from the app menu, or run {script}")
-    say("Inkling loads by itself (GPU profile: " + args.profile + "); open the 'H3 I2V Director' tab.")
+    say(f"Inkling loads by itself ({args.profile} GPU profile); open the 'H3 I2V Director' tab.")
     say(f"Downloaded archives are in {downloads}; delete them to free space.")
     return 0
 

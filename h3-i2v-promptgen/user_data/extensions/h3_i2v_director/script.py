@@ -3,8 +3,8 @@ MiniMax H3 (Hailuo 3) image-to-video prompt in the official H3 format.
 
 The picture goes to the loaded vision model (Inkling 2 Mini with its mmproj), which
 writes the prompt; the tab then repairs and checks the structure (h3_core.py).
-It can also load Inkling itself with a GPU profile that leaves room for Fooocus, and
-take the newest Fooocus image as the first frame (h3_system.py).
+It can also load Inkling itself with a small-VRAM profile that leaves room for other GPU
+apps such as Fooocus (h3_system.py).
 
 Enable with --extensions h3_i2v_director (or in the Session tab).
 """
@@ -61,15 +61,14 @@ params = {
     "llama_server_path": "",            # optional newer llama-server for TextGen's llama.cpp loader
     "model_file": "",                   # Inkling GGUF in user_data/models (empty = auto-detect)
     "mmproj_file": "",                  # its vision projector in user_data/mmproj (empty = auto-detect)
-    "gpu_profile": "auto",              # auto / full / share (see h3_system.PROFILES)
+    "gpu_profile": "small",             # small / full (see h3_system.PROFILES)
     "ctx_size": 16384,
     "vram_margin_mb": 1024,             # VRAM left free in the "full" profile
     "autoload": False,                  # load Inkling when TextGen starts
-    "fooocus_outputs": "",              # Fooocus output folder (empty = auto-detect)
 }
 SAVED_KEYS = ("backend", "api_url", "api_key", "api_model", "thinking", "temperature", "top_p", "min_p",
               "max_tokens", "auto_repair", "save_prompts", "max_image_side", "llama_server_path", "model_file",
-              "mmproj_file", "gpu_profile", "ctx_size", "vram_margin_mb", "autoload", "fooocus_outputs")
+              "mmproj_file", "gpu_profile", "ctx_size", "vram_margin_mb", "autoload")
 PROFILE_BY_LABEL = {v: k for k, v in sysinfo.PROFILES.items()}
 
 BACKENDS = {"TextGen (loaded model)": "textgen", "OpenAI-compatible server (URL)": "openai"}
@@ -200,8 +199,7 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None):
     if not model:
         return ("❌ No Inkling 2 GGUF found in `user_data/models/`. Download the model (and its mmproj) first, "
                 "or pick the file in the list.")
-    fooocus = bool(sysinfo.fooocus_processes())
-    profile = sysinfo.resolve_profile(profile_key or params["gpu_profile"], fooocus)
+    profile = sysinfo.resolve_profile(profile_key or params["gpu_profile"])
     args = sysinfo.load_args(profile, mmproj, params["ctx_size"], params["vram_margin_mb"])
     if not _load_lock.acquire(blocking=False):
         return "⏳ A model is already being loaded."
@@ -219,7 +217,7 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None):
         _load_lock.release()
     if shared.model is None:
         return "❌ Loading failed; see the TextGen console."
-    where = "MoE experts in system RAM" if profile == "share" else "as much as fits on the GPU"
+    where = "small VRAM, MoE experts in system RAM" if profile == "small" else "as much as fits on the GPU"
     return f"✅ Loaded `{model}` with {'`' + mmproj + '`' if mmproj else 'no mmproj (no vision)'} · {where}."
 
 
@@ -227,7 +225,7 @@ def unload_inkling():
     from modules.models import unload_model
 
     unload_model()
-    return "Model unloaded; the GPU memory is free for Fooocus or games."
+    return "Model unloaded; its GPU memory is free again."
 
 
 def _autoload():
@@ -277,11 +275,14 @@ def _openai_messages(system, turns, uris):
     return messages
 
 
+def _model_vram_mb():
+    process = getattr(shared.model, "process", None)
+    pid = getattr(process, "pid", None)
+    return sysinfo.process_vram_mb(pid) if pid else None
+
+
 def model_status():
-    gpu = sysinfo.gpu_summary()
-    fooocus = sysinfo.fooocus_processes()
-    if fooocus:
-        gpu += " · Fooocus is running"
+    gpu = sysinfo.gpu_summary(model_vram_mb=_model_vram_mb() if shared.model is not None else None)
     if params["backend"] == "openai":
         return f"Backend: server at `{_api_base(params['api_url'])}`  \n{gpu}"
     name = shared.model_name if shared.model_name not in (None, "None") and shared.model is not None else None
@@ -289,29 +290,8 @@ def model_status():
         return f"Backend: TextGen · **no model loaded** (use *Load Inkling* below)  \n{gpu}"
     vision = "vision on" if getattr(shared, "is_multimodal", False) else "**no vision** (load it with its mmproj file)"
     fmt = "Inkling native format" if core.is_inkling(name, shared.settings.get("instruction_template_str", "")) else "model's chat template"
-    moe = " · experts in RAM" if getattr(shared.args, "cpu_moe", False) else ""
-    hint = ""
-    if fooocus and not getattr(shared.args, "cpu_moe", False):
-        hint = "  \n⚠️ Fooocus is running and Inkling uses the full-GPU profile: reload with *Share GPU with Fooocus* if Fooocus runs out of memory."
-    return f"Backend: TextGen · `{name}` · {vision} · {fmt}{moe}  \n{gpu}{hint}"
-
-
-def use_fooocus_image(mode_label, configured):
-    """Newest Fooocus image(s) as Picture 1 (and Picture 2 for first + last frame)."""
-    from PIL import Image
-
-    mode = MODE_BY_LABEL.get(mode_label, "I2VA")
-    dirs = sysinfo.fooocus_output_dirs(configured or params["fooocus_outputs"])
-    if not dirs:
-        return gr.update(), gr.update(), ("❌ No Fooocus output folder found. Set it under *Model and backend settings* "
-                                          "(e.g. `~/Fooocus/outputs`).")
-    newest = sysinfo.newest_images(dirs, count=2 if mode == "FL2VA" else 1)
-    if not newest:
-        return gr.update(), gr.update(), f"❌ No images in {', '.join(f'`{d}`' for d in dirs)} yet."
-    images = [Image.open(p).convert("RGB") for p in newest]
-    if mode == "FL2VA" and len(images) == 2:
-        return images[0], images[1], f"Picture 1: `{newest[0].name}` · Picture 2: `{newest[1].name}` (newest)"
-    return images[-1], gr.update(), f"Picture 1: `{newest[-1]}`"
+    moe = " · small-VRAM profile (experts in RAM)" if getattr(shared.args, "cpu_moe", False) else " · full-GPU profile"
+    return f"Backend: TextGen · `{name}` · {vision} · {fmt}{moe}  \n{gpu}"
 
 
 def _context_size():
@@ -655,15 +635,13 @@ def stop():
 
 
 def save_settings(backend_label, api_url, api_key, api_model, thinking, temperature, top_p, min_p, max_tokens,
-                  auto_repair, save_prompts, llama_server_path, fooocus_outputs, model_file, mmproj_file,
-                  profile_label, autoload):
+                  auto_repair, save_prompts, llama_server_path, model_file, mmproj_file, profile_label, autoload):
     _cfg(backend_label, api_url, api_key, api_model, thinking, temperature, top_p, min_p, max_tokens, auto_repair,
          save_prompts)
     params["llama_server_path"] = (llama_server_path or "").strip()
-    params["fooocus_outputs"] = (fooocus_outputs or "").strip()
     params["model_file"] = model_file or ""
     params["mmproj_file"] = mmproj_file or ""
-    params["gpu_profile"] = PROFILE_BY_LABEL.get(profile_label, "auto")
+    params["gpu_profile"] = PROFILE_BY_LABEL.get(profile_label, sysinfo.DEFAULT_PROFILE)
     params["autoload"] = bool(autoload)
     SETTINGS_FILE.write_text(json.dumps({k: params[k] for k in SAVED_KEYS}, indent=2), encoding="utf-8")
     msg = f"Saved to `{SETTINGS_FILE}`."
@@ -695,7 +673,7 @@ def ui():
             model_file = gr.Dropdown(models, value=chosen_model or None, label="Inkling 2 GGUF (user_data/models)")
             mmproj_file = gr.Dropdown(mmprojs, value=chosen_mmproj or None, label="Vision file / mmproj (user_data/mmproj)")
         gpu_profile = gr.Radio(list(sysinfo.PROFILES.values()),
-                               value=sysinfo.PROFILES.get(params["gpu_profile"], sysinfo.PROFILES["auto"]),
+                               value=sysinfo.PROFILES[sysinfo.resolve_profile(params["gpu_profile"])],
                                label="GPU profile")
         with gr.Row():
             load_btn = gr.Button("Load Inkling", variant="primary")
@@ -711,9 +689,6 @@ def ui():
                 img1 = gr.Image(type="pil", label="Picture 1 (first frame)", sources=["upload", "clipboard"], height=280)
                 img2 = gr.Image(type="pil", label="Picture 2 (last frame)", sources=["upload", "clipboard"], height=280,
                                 visible=False)
-            with gr.Row():
-                fooocus_btn = gr.Button("🖼 Use latest Fooocus image")
-            fooocus_status = gr.Markdown("")
             idea = gr.Textbox(label="Your idea", lines=4,
                               placeholder="e.g. she turns to the window and smiles as the train starts moving, rain on the glass")
             with gr.Row():
@@ -780,8 +755,6 @@ def ui():
         llama_server_path = gr.Textbox(
             params["llama_server_path"],
             label="Newer llama-server for TextGen (file or folder; empty = auto-detect user_data/llama-cpp/)")
-        fooocus_outputs = gr.Textbox(params["fooocus_outputs"],
-                                     label="Fooocus output folder (empty = auto-detect, e.g. ~/Fooocus/outputs)")
         with gr.Row():
             save_btn = gr.Button("Save settings")
             refresh_btn = gr.Button("Refresh model status")
@@ -806,11 +779,11 @@ def ui():
     clear_notes.click(lambda: "", None, notes, queue=False)
     stop_btn.click(stop, None, None, queue=False)
     recheck_btn.click(recheck, [prompt, mode, duration, shots, dialogue, music, silent], [prompt, report])
-    save_btn.click(save_settings, settings_inputs + [llama_server_path, fooocus_outputs, model_file, mmproj_file,
-                                                     gpu_profile, autoload], save_status)
+    save_btn.click(save_settings, settings_inputs + [llama_server_path, model_file, mmproj_file, gpu_profile,
+                                                     autoload], save_status)
 
     def _load(model, mmproj, profile_label):
-        params["gpu_profile"] = PROFILE_BY_LABEL.get(profile_label, "auto")
+        params["gpu_profile"] = PROFILE_BY_LABEL.get(profile_label, sysinfo.DEFAULT_PROFILE)
         return load_inkling(model or "", mmproj or "", params["gpu_profile"])
 
     def _refresh_files():
@@ -823,7 +796,6 @@ def ui():
     unload_btn.click(unload_inkling, None, load_status).then(model_status, None, status_model, queue=False)
     refresh_files_btn.click(_refresh_files, None, [model_file, mmproj_file]).then(
         model_status, None, status_model, queue=False)
-    fooocus_btn.click(use_fooocus_image, [mode, fooocus_outputs], [img1, img2, fooocus_status])
     refresh_btn.click(model_status, None, status_model, queue=False)
     backend.change(lambda b: (params.update(backend=BACKENDS.get(b, "textgen")), model_status())[1], backend, status_model,
                    queue=False)

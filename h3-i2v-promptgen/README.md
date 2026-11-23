@@ -14,8 +14,8 @@ format. The tab then checks and repairs the format, so the result is ready to pa
   the format their own prompt rewriter (H3-Context-IR) produces.
 - **Modes:** I2VA (picture = first frame), FL2VA (first + last frame), L2VA (picture = last frame),
   T2VA (text only).
-- **Made for Bazzite + RTX 5080, next to Fooocus:** a one-command installer, one-click loading with a GPU
-  profile that leaves VRAM for Fooocus, and a button that takes your newest Fooocus image as the first frame.
+- **Made for Bazzite + RTX 5080:** a one-command installer, and by default a small-VRAM mode, so it fits on
+  the GPU next to Fooocus.
 
 ## Bazzite + RTX 5080: one-command install
 
@@ -40,7 +40,8 @@ The installer:
    sees the card (`CUDA0: NVIDIA GeForce RTX 5080`);
 4. downloads **Inkling 2 Mini Uncensored** (`Q4_K_M`, about 16 GB) and its **mmproj** (vision) from Hugging Face
    (`--repo` and `--quant` choose others);
-5. adds the H3 tab, turns it on in `CMD_FLAGS.txt`, and sets Inkling to load automatically;
+5. adds the H3 tab, turns it on in `CMD_FLAGS.txt`, and sets Inkling to load automatically with the
+   small-VRAM profile, so it fits next to Fooocus (`--profile full` for the whole GPU instead);
 6. creates **TextGen H3 Director** in the app menu and `~/AI/textgen/start-h3-director.sh`.
 
 `user_data` (models, settings, prompts) sits next to the TextGen folders, so TextGen updates keep it.
@@ -51,26 +52,24 @@ Start **TextGen H3 Director**. Inkling loads by itself (watch the status line at
 `start-h3-director.sh --browser` runs without the desktop window (open http://127.0.0.1:7860);
 `--listen` makes it reachable from other devices on your network.
 
-### Running Fooocus at the same time
+### Fitting on the GPU next to Fooocus
 
-The 5080 has 16 GB of VRAM. Fooocus (SDXL) wants about 8 GB of it, and the Inkling Q4_K_M file alone is about 16 GB.
-The **Model and GPU** panel at the top of the tab handles that:
+The 5080 has 16 GB of VRAM. Fooocus (SDXL) needs a good part of it, and the Inkling Q4_K_M file alone is
+about 16 GB, so Inkling cannot sit on the GPU whole. It doesn't need to: Inkling is a mixture-of-experts
+model, and only 8 of its 128 experts run per token. The **Model and GPU** panel at the top of the tab has
+two profiles:
 
-| GPU profile | What it does | When |
-|---|---|---|
-| **Auto** (default) | *Share* if Fooocus is running when Inkling loads, otherwise *Full* | most of the time |
-| **Full GPU** | llama.cpp fits as much of Inkling into VRAM as possible (1 GB left free) | Fooocus closed |
-| **Share GPU with Fooocus** | every layer on the GPU except the MoE experts, which stay in system RAM (`--cpu-moe`); only 8 of 128 experts run per token, so it stays quick | Fooocus open |
+| GPU profile | What it does |
+|---|---|
+| **Small VRAM** (default) | Every layer on the GPU except the MoE experts, which stay in system RAM (`--cpu-moe`). Takes little VRAM and stays quick. Use it while Fooocus is open. |
+| **Full GPU** | llama.cpp fits as much of Inkling into VRAM as it can (1 GB left free). Fastest, for when nothing else uses the GPU. |
 
-- **Load Inkling** and **Unload (free the GPU)** switch between them in seconds without restarting
-  TextGen. Unload before a game or a big Fooocus batch.
-- The status line shows the GPU's memory in use and whether Fooocus is running. It warns you when Fooocus
-  was started after Inkling was loaded on the full profile.
-- **🖼 Use latest Fooocus image** puts your newest Fooocus picture into *Picture 1* (in FL2VA mode the
-  two newest go into Picture 1 and 2). It finds Fooocus' `outputs` folder from the running Fooocus,
-  its `config.txt`, or `~/Fooocus`. Set the folder under *Model and backend settings* if yours is elsewhere.
-- Fooocus itself on an RTX 50-series card needs a CUDA 12.8 build of PyTorch. Its default install uses an
-  older one that fails with "no kernel image is available".
+- The status line shows the GPU's memory in use and **how much of it Inkling takes**, so you can see
+  what is left for Fooocus.
+- **Load Inkling** and **Unload (free the GPU)** switch profiles in seconds without restarting TextGen.
+  Unload frees all of Inkling's VRAM (before a game, for example).
+- The small-VRAM profile keeps most of the model in system RAM: with Fooocus open as well, 32 GB of RAM is
+  the minimum and 64 GB is comfortable. With less, use a smaller quant (`--quant IQ4_XS`).
 
 ## What's in this folder
 
@@ -151,7 +150,7 @@ the newer llama-server.
 ### 5. Load the model
 
 In the **H3 I2V Director** tab, open **Model and GPU**. The Inkling GGUF and its mmproj are picked
-automatically. Choose a GPU profile (see [Running Fooocus at the same time](#running-fooocus-at-the-same-time))
+automatically. Choose a GPU profile (see [Fitting on the GPU next to Fooocus](#fitting-on-the-gpu-next-to-fooocus))
 and press **Load Inkling**. Tick *Load automatically when TextGen starts* and press *Save settings* to skip
 this next time.
 
@@ -247,8 +246,7 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 | *The request needs about N tokens, but the model was loaded with a context of …* | Load the model with ctx-size 16384 or more |
 | *No model is loaded* | *Model and GPU* → *Load Inkling* (or switch the backend to a server URL) |
 | Installer: *llama.cpp does not see the GPU* (Bazzite) | You are on a non-NVIDIA Bazzite image or the driver isn't running: check `nvidia-smi`; RTX 50 cards need the `-nvidia-open` image |
-| Fooocus runs out of memory / gets slow | *Model and GPU* → *Share GPU with Fooocus* → *Load Inkling* (or *Unload* while Fooocus works) |
-| Fooocus: "no kernel image is available" on the 5080 | Fooocus needs a CUDA 12.8 PyTorch for RTX 50 cards; that's a Fooocus setting, not this tab |
+| Fooocus runs out of GPU memory | *Model and GPU* → *Small VRAM* → *Load Inkling* (or *Unload* while Fooocus works) |
 | *Could not reach http://…/chat/completions* | Start llama-server, check the URL and port |
 | ⚠️ *Finished, but the format check still finds problems* | Generate again, set Thinking to *low*, or fix by hand and press *Re-check* |
 | The tab is missing | Session tab → tick `h3_i2v_director` → apply and restart |
