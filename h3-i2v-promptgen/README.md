@@ -196,10 +196,26 @@ The status line at the top should now show `vision on · Inkling native format`.
 7. **Generate H3 prompt** → copy it with the button in the corner of the output box. Use it on H3 with the
    **same picture** and **the same duration**.
 
-The format check under the output lists anything still wrong. ❌ is a structural error, ⚠️ is a style note,
-🔧 is something already fixed. If the model breaks the structure, the tab asks it once more to fix it
-(*Auto-repair*). You can also edit the prompt by hand and press **Re-check / fix**. Every prompt is saved
-to `user_data/logs/h3_prompts/` (with a `.json` of the settings).
+Under the output you get two checks:
+
+- **Format check**: the official H3 rules. Exact first line, the three fields in order, `[Shot 1]` opening
+  with style and composition, later shots with increasing cut times inside the duration and a cut phrase
+  ("the camera cuts to …"), camera motion as a sentence (no `[Pan left]`), dialogue as
+  `(S1) says: <d>[Language] …</d>`, the exact voiceover wording, picture labels only for attached
+  pictures, 1–4 sentences of soundscape, and 1–3 sentences of music without mood words.
+  ❌ = error, ⚠️ = note, 🔧 = fixed automatically.
+- **Matches your request**: the shot count, camera move, amplitude and speed you chose; your lines word for
+  word with the right language tag; no invented dialogue; silence / no music when asked; your style; and
+  how many key words of your idea the description contains (synonyms are fine, so that one is only a hint).
+
+If either check finds a real problem, the tab sends the list back to the model once and keeps the better
+answer (*Auto-repair*). You can also edit the prompt by hand and press **Re-check / fix**. Every prompt is
+saved to `user_data/logs/h3_prompts/` (with a `.json` of the settings).
+
+**🧪 Self-test** (accordion under the buttons) runs six basic plain-language ideas through your loaded
+model, exactly like *Generate*, and shows a pass/fail table. They cover a simple idea, a static camera with no
+music, two shots with a spoken line, complete silence, and with a picture in *Picture 1* also push in and a
+Spanish line. Run it once after installing to see how well Inkling follows the H3 rules on your machine.
 
 **Thinking**: *off* is fastest and fine for most ideas. *low* or *medium* lets Inkling plan first, which helps
 complex multi-shot ideas, at the cost of time.

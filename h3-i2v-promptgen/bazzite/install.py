@@ -64,6 +64,7 @@ H3_FILES = [
     "user_data/extensions/h3_i2v_director/script.py",
     "user_data/extensions/h3_i2v_director/h3_core.py",
     "user_data/extensions/h3_i2v_director/h3_system.py",
+    "user_data/extensions/h3_i2v_director/h3_selftest.py",
     "user_data/extensions/h3_i2v_director/system_prompt.md",
     "user_data/instruction-templates/Inkling 2 - H3 Director.yaml",
     "user_data/presets/H3 Director.yaml",

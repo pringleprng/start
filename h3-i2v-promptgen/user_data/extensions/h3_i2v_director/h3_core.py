@@ -90,6 +90,21 @@ HYPE_WORDS = (
     "photorealistic", "hyperrealistic", "hyper-realistic", "trending on", "award-winning",
 )
 
+# Mood words the guide keeps out of non_diegetic_music ("do not use abstract mood words").
+MOOD_WORDS = (
+    "emotional", "melancholic", "melancholy", "uplifting", "heartwarming", "nostalgic", "joyful", "happy", "sad",
+    "tense", "dramatic", "mysterious", "romantic", "hopeful", "comforting", "cozy", "eerie", "triumphant",
+    "atmospheric", "atmosphere", "mood", "moody", "feel-good", "inspiring", "haunting", "playful", "whimsical",
+)
+# Ordinary cut phrases from the guide (section 4.2); transitions only when the user asks.
+CUT_PHRASES = ("the camera cuts to", "the shot cuts to", "the shot transitions to", "the shot changes to",
+               "the shot switches to")
+TRANSITION_RE = re.compile(r"cross-?dissolve|dissolves? (?:in)?to\b|fades? (?:to|from) black|\bfade-(?:in|out)\b|"
+                           r"\bwipes? (?:to|across)\b", re.I)
+STYLE_RE = re.compile(r"live-action|cinematic|2d|3d|\bcg\b|animat|anime|claymation|stop-motion|watercolou?r|"
+                      r"vintage film|film|cartoon|illustrat|painterly|pixel|realistic|photographic|documentary|"
+                      r"noir|sketch|ink|oil paint|comic", re.I)
+
 # Hailuo 2.x bracket camera commands. H3 wants natural-language camera motion.
 BRACKET_CAMERA_RE = re.compile(
     r"\[(?:truck|pan|tilt|pedestal|push|pull|zoom|tracking|static|shake|arc|roll|pov)\b[^\]]*\]",
@@ -615,6 +630,29 @@ def validate(prompt: str, req: Request) -> list[Issue]:
         except ValueError:
             pass
 
+    # style and composition first, approved cut phrases later
+    if shots and not STYLE_RE.search(" ".join(description[shots[0][2]:].split()[:30])):
+        warn("[Shot 1] should open with the overall style and composition, e.g. \"[Shot 1] Live-action, cinematic, "
+             "a medium shot frames ...\".")
+    for number, start, end in shots[1:]:
+        rest = description[end:]
+        m = TIME_RE.match(rest)
+        after = rest[m.end():].lstrip().lower() if m else ""
+        if m and not after.startswith(CUT_PHRASES) and not TRANSITION_RE.search(after[:60]):
+            warn(f"[Shot {number}] should continue with a cut phrase such as \"the camera cuts to\" "
+                 f"(found \"{after[:30]}...\").")
+    if TRANSITION_RE.search(description) and not re.search(r"dissolve|fade|wipe", req.idea, re.I):
+        warn("A dissolve, fade or wipe is used, but the guide allows them only when you ask for one.")
+    if req.mode == "FL2VA" and len(shots) > 1 and req.shots in ("auto", "", "1"):
+        warn("First-and-last-frame videos work best as one continuous shot (the guide uses several only when asked).")
+
+    # picture labels must refer to attached pictures
+    labels = set(re.findall(r"Picture (\d)", prompt or ""))
+    if req.mode == "T2VA" and labels:
+        err("T2VA has no picture, but the prompt mentions one (unresolved reference label).")
+    elif req.mode in ("I2VA", "L2VA") and labels - {"1"}:
+        err(f"{req.mode} has one picture, but the prompt mentions Picture {', '.join(sorted(labels - {'1'}))}.")
+
     # dialogue
     blocks = DIALOGUE_RE.findall(description)
     if description.count("<d>") != description.count("</d>"):
@@ -627,8 +665,24 @@ def validate(prompt: str, req: Request) -> list[Issue]:
         if not re.search(r"\(S\d+(?:\s*,\s*S\d+)*\)", before):
             warn("A dialogue line has no speaker ID like (S1) before it.")
             break
-    if "voiceover" in description.lower() and "lips remain" not in description.lower():
-        warn("Voiceover lines should be followed by: while his/her lips remain completely closed.")
+    ids_used = set(re.findall(r"\bS(\d+)\b", " ".join(re.findall(r"\((S\d+(?:\s*,\s*S\d+)*)\)", description))))
+    ids_speaking = set()
+    for m in DIALOGUE_RE.finditer(description):
+        before = description[max(0, m.start() - 250):m.start()]
+        found = re.findall(r"\((S\d+(?:\s*,\s*S\d+)*)\)", before)
+        if found:
+            ids_speaking |= set(re.findall(r"S(\d+)", found[-1]))
+    for silent_id in sorted(ids_used - ids_speaking, key=int):
+        warn(f"(S{silent_id}) never speaks; only characters who speak or sing get a speaker ID.")
+    if re.search(r"voice-?over", description, re.I):
+        if "says in an off-screen voiceover" not in description:
+            warn("For a voiceover the guide uses the exact words \"says in an off-screen voiceover\".")
+        for m in re.finditer(r"off-screen voiceover:?\s*<d>.*?</d>", description, re.S):
+            if "lips remain" not in description[m.end():m.end() + 120]:
+                warn("Right after each voiceover line, state that the character's lips remain closed.")
+                break
+    if description.count("<scenetrans>") % 2:
+        warn("<scenetrans> marks both sides of a line that continues across a cut; one side is missing.")
     for line_text in dialogue_lines(req.dialogue):
         if line_text not in description:
             warn(f"Your line \"{line_text[:60]}\" is not in the prompt word for word.")
@@ -651,6 +705,10 @@ def validate(prompt: str, req: Request) -> list[Issue]:
             err("non_diegetic_music is empty (write N/A for no music).")
         elif _sentences(music) > 3:
             warn(f"non_diegetic_music has {_sentences(music)} sentences; the guide asks for 1 to 3.")
+        moods = sorted({w for w in MOOD_WORDS if re.search(r"(?<![a-z-])" + re.escape(w) + r"(?![a-z-])", music.lower())})
+        if moods:
+            warn("non_diegetic_music should name instruments, tempo, rhythm and dynamics, not moods: "
+                 + ", ".join(moods) + ".")
 
     # style of writing
     if BRACKET_CAMERA_RE.search(prompt or ""):
@@ -667,7 +725,152 @@ def validate(prompt: str, req: Request) -> list[Issue]:
     return issues
 
 
-def report_markdown(issues: list[Issue], notes: list[str], prompt: str = "") -> str:
+# --------------------------------------------------------------------------------------
+# Does the prompt match what the user asked for?
+# --------------------------------------------------------------------------------------
+
+CAMERA_PATTERNS = {
+    "Static Shot": r"static shot|holds? (?:a |the )?static|remains? (?:completely |perfectly )?(?:still|static)",
+    "Push In": r"push(?:es|ing)? in", "Pull Out": r"pull(?:s|ing)? (?:out|back)",
+    "Zoom In": r"zoom(?:s|ing)? in", "Zoom Out": r"zoom(?:s|ing)? out",
+    "Pan Left": r"pan(?:s|ning)? left", "Pan Right": r"pan(?:s|ning)? right",
+    "Truck Left": r"truck(?:s|ing)? left", "Truck Right": r"truck(?:s|ing)? right",
+    "Tilt Up": r"tilt(?:s|ing)? up", "Tilt Down": r"tilt(?:s|ing)? down",
+    "Pedestal Up": r"pedestal(?:s|ing)? up", "Pedestal Down": r"pedestal(?:s|ing)? down",
+    "Arc Shot": r"\barc(?:s|ing)?\b", "Tracking Shot": r"tracking shot|\btrack(?:s|ing)\b",
+    "POV": r"\bPOV\b|point of view", "Shake Slightly": r"shak(?:e|es|ing) slightly",
+    "Shake Strongly": r"shak(?:e|es|ing) strongly", "Roll Clockwise": r"roll(?:s|ing)? clockwise",
+    "Roll Counterclockwise": r"roll(?:s|ing)? counterclockwise",
+}
+SPEECH_HINT_RE = re.compile(r"[\"“”«»]|\b(?:say|says|said|saying|talk|talks|speak|speaks|shout|shouts|whisper|"
+                            r"whispers|sing|sings|singing|ask|asks|tell|tells|yell|yells|call|calls|line|lines|"
+                            r"dialogue|voice|voiceover|narrat\w*)\b", re.I)
+STOPWORDS = set("""a an the and or but then than that this these those with without into onto from over under
+after before while when where who whom whose which what about above below behind front near next between
+around through across along toward towards upon also just very really some more most much many each every
+both into its it's his her hers him she he they them their there here have has had having been being were
+was are is be do does did doing can could would should will shall may might must not no yes only like same
+other another such own your you our ours out off still even back away down up left right camera shot video
+clip scene seconds second picture image frame photo make makes made look looks looking slowly quickly
+for not you are was has had out off one two get got put see saw way can may all any how why now too yet let
+our use via per its him her his she who they them then than""".split()) - {"way"}
+
+
+@dataclass
+class Check:
+    ok: bool
+    message: str
+    repair: bool = False   # worth asking the model to fix
+
+
+def _stem(word: str) -> str:
+    word = word.lower()
+    for suffix in ("ing", "ies", "es", "ed", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: -len(suffix)]
+    return word
+
+
+def idea_keywords(idea: str) -> list[str]:
+    """Content words of an English idea (empty for other languages)."""
+    if not idea or not idea.isascii():
+        return []
+    words = re.findall(r"[A-Za-z][A-Za-z'-]{1,}", idea)
+    out = []
+    for w in words:
+        lw = w.lower().strip("'")
+        if lw in STOPWORDS or len(lw) < 3 or lw in out:
+            continue
+        out.append(lw)
+    return out
+
+
+def fidelity(prompt: str, req: Request) -> list[Check]:
+    """Checks that the prompt does what the user asked for (on top of the format rules)."""
+    req.clamp()
+    checks: list[Check] = []
+    p = parse_prompt(prompt)
+    desc = p.sections.get("integrated_multimodal_description", "")
+    low = desc.lower()
+
+    if req.shots not in ("auto", "", None):
+        try:
+            wanted = int(req.shots)
+            got = len(_shots(desc))
+            checks.append(Check(got == wanted, f"Shots: asked for {wanted}, the prompt has {got}.", repair=got != wanted))
+        except ValueError:
+            pass
+
+    if req.camera in CAMERA_PATTERNS:
+        found = re.search(CAMERA_PATTERNS[req.camera], desc, re.I) is not None
+        checks.append(Check(found, f"Camera: {req.camera.lower()}" + ("" if found else " is missing"), repair=not found))
+        if req.camera not in ("Static Shot", "POV", "Shake Slightly", "Shake Strongly"):
+            for value, phrase in ((req.amplitude, "with {} amplitude"), (req.speed, "at {} speed")):
+                if value in ("small", "large", "slow", "fast"):
+                    text = phrase.format(value)
+                    ok = text in low
+                    checks.append(Check(ok, f"Camera: \"{text}\"" + ("" if ok else " is missing"), repair=not ok))
+
+    lines = dialogue_lines(req.dialogue)
+    if lines:
+        missing = [ln for ln in lines if ln not in desc]
+        checks.append(Check(not missing, "Dialogue: all your lines word for word" if not missing else
+                            "Dialogue: not word for word: " + "; ".join(f"\"{m[:50]}\"" for m in missing),
+                            repair=bool(missing)))
+        if req.dialogue_language.strip():
+            tag = f"[{req.dialogue_language.strip()}]".lower()
+            blocks = DIALOGUE_RE.findall(desc)
+            ok = bool(blocks) and all(b.strip().lower().startswith(tag) for b in blocks)
+            checks.append(Check(ok, f"Dialogue language tag {tag}" + ("" if ok else " is not used on every line"),
+                                repair=not ok))
+    elif DIALOGUE_RE.search(desc) and not SPEECH_HINT_RE.search(req.idea):
+        checks.append(Check(False, "Dialogue was added although your idea has no speech.", repair=True))
+
+    music = p.sections.get("non_diegetic_music", "").strip()
+    soundscape = p.sections.get("overall_soundscape", "").strip()
+    if req.silent:
+        ok = music.upper() == "N/A" and soundscape.upper() == "N/A"
+        checks.append(Check(ok, "Complete silence: soundscape and music are N/A" if ok else
+                            "Complete silence was asked, but there is sound"))
+    elif req.music == "none":
+        checks.append(Check(music.upper() == "N/A", "No music: non_diegetic_music is N/A"))
+    elif req.music == "custom" and req.music_text.strip():
+        wanted = idea_keywords(req.music_text)
+        hit = [w for w in wanted if _stem(w) in _stem_text(music)]
+        ok = not wanted or len(hit) >= max(1, len(wanted) // 2)
+        checks.append(Check(ok, "Music follows your description" if ok else
+                            f"Music: your description ({', '.join(wanted)}) is not reflected", repair=not ok))
+
+    if req.style.strip():
+        wanted = idea_keywords(req.style) or [w.lower() for w in re.findall(r"\w{2,}", req.style)]
+        opening = " ".join(desc.split()[:40]).lower()
+        hit = [w for w in wanted if _stem(w) in _stem_text(opening)]
+        ok = bool(hit) or not wanted
+        checks.append(Check(ok, f"Style: {req.style.strip()}" + ("" if ok else " is not stated at the start of [Shot 1]"),
+                            repair=not ok))
+
+    keywords = idea_keywords(req.idea)
+    if keywords:
+        stems = _stem_text(desc)
+        missing = [w for w in keywords if _stem(w) not in stems]
+        share = 1 - len(missing) / len(keywords)
+        msg = f"Your idea: {len(keywords) - len(missing)}/{len(keywords)} key words in the description"
+        if missing:
+            msg += " (not found: " + ", ".join(missing) + "; synonyms are fine)"
+        checks.append(Check(share >= 0.6, msg))
+    return checks
+
+
+def _stem_text(text: str) -> set[str]:
+    return {_stem(w) for w in re.findall(r"[A-Za-z][A-Za-z'-]{2,}", text)}
+
+
+def build_fix_message(issues: list[Issue], checks: list[Check]) -> str:
+    problems = [i.message for i in issues if i.level == "error"] + [c.message for c in checks if c.repair and not c.ok]
+    return build_repair_message([Issue("error", m) for m in problems])
+
+
+def report_markdown(issues: list[Issue], notes: list[str], prompt: str = "", checks: list[Check] | None = None) -> str:
     lines = []
     errors = [i for i in issues if i.level == "error"]
     warnings = [i for i in issues if i.level == "warning"]
@@ -683,6 +886,12 @@ def report_markdown(issues: list[Issue], notes: list[str], prompt: str = "") -> 
         lines.append("")
         lines.append("Auto-fixed:")
         lines += [f"- 🔧 {n}" for n in notes]
+    if checks:
+        lines.append("")
+        misses = [c for c in checks if not c.ok]
+        lines.append("**Matches your request: yes.**" if not misses else
+                     f"**Matches your request: {len(misses)} point(s) to look at.**")
+        lines += [f"- {'✅' if c.ok else '⚠️'} {c.message}" for c in checks]
     if prompt:
         p = parse_prompt(prompt)
         desc = p.sections.get("integrated_multimodal_description", "")

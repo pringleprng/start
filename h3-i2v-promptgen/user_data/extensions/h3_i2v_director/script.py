@@ -40,6 +40,8 @@ def _load_local(name, filename):
 
 core = _load_local("h3_i2v_director_core", "h3_core.py")
 sysinfo = _load_local("h3_i2v_director_system", "h3_system.py")
+sys.modules.setdefault("h3_core", core)  # h3_selftest imports it by this name
+selftest = _load_local("h3_i2v_director_selftest", "h3_selftest.py")
 
 SETTINGS_FILE = HERE / "settings.json"
 
@@ -532,6 +534,35 @@ def _finish(raw_reasoning, raw_answer, req):
     return fixed, notes, issues, reasoning
 
 
+def _pipeline(req, encoded, cfg):
+    """Write the prompt, check it, and let the model fix it once if needed.
+
+    Yields ("progress", label, answer, reasoning) while the model writes, then
+    ("done", prompt, notes, issues, checks, thinking) or ("stopped", answer, reasoning).
+    """
+    system = core.load_system_prompt()
+    turns = [("user", core.build_user_message(req), len(encoded))]
+    best, best_score = None, None
+    for attempt in (1, 2):
+        label = "Writing the H3 prompt" if attempt == 1 else "Fixing the prompt (second pass)"
+        reasoning, answer = "", ""
+        yield ("progress", label, answer, reasoning)
+        for reasoning, answer in _stream(system, turns, encoded, cfg):
+            yield ("progress", label, answer, reasoning)
+        if _stop.is_set():
+            yield ("stopped", answer, reasoning)
+            return
+        fixed, notes, issues, thoughts = _finish(reasoning, answer, req)
+        checks = core.fidelity(fixed, req)
+        score = sum(i.level == "error" for i in issues) + sum(c.repair and not c.ok for c in checks)
+        if best is None or score < best_score:
+            best, best_score = (fixed, notes, issues, checks, thoughts), score
+        if score == 0 or not cfg["auto_repair"] or attempt == 2:
+            break
+        turns = turns + [("assistant", fixed), ("user", core.build_fix_message(issues, checks), 0)]
+    yield ("done", *best)
+
+
 def _save(prompt, req):
     folder = Path(shared.user_data_dir) / "logs" / "h3_prompts"
     folder.mkdir(parents=True, exist_ok=True)
@@ -567,35 +598,25 @@ def generate(mode_label, img1, img2, idea, duration, aspect, shots, camera, ampl
                    music, music_text, silent, style, notes, len(images))
     try:
         encoded = [_image_data_uri(img, params["max_image_side"]) for img in images]
-        system = core.load_system_prompt()
-        turns = [("user", core.build_user_message(req), len(encoded))]
-
-        best = None
-        for attempt in (1, 2):
-            label = "Writing the H3 prompt" if attempt == 1 else "Fixing the format (second pass)"
-            yield gr.update(), "", "", f"⏳ {label}…"
-            reasoning, answer, last = "", "", 0.0
-            for reasoning, answer in _stream(system, turns, encoded, cfg):
-                now = time.time()
-                if now - last > 0.2:
-                    last = now
+        last, result = 0.0, None
+        for event in _pipeline(req, encoded, cfg):
+            if event[0] == "progress":
+                _, label, answer, reasoning = event
+                if time.time() - last > 0.2:
+                    last = time.time()
                     yield core.split_reasoning(answer)[1], "", reasoning, f"⏳ {label}… {len(answer.split())} words"
-            if _stop.is_set():
-                yield core.split_reasoning(answer)[1], "", reasoning, "⏹ Stopped."
+            elif event[0] == "stopped":
+                yield core.split_reasoning(event[1])[1], "", event[2], "⏹ Stopped."
                 return
-            fixed, fix_notes, issues, thoughts = _finish(reasoning, answer, req)
-            errors = [i for i in issues if i.level == "error"]
-            if best is None or len(errors) < len([i for i in best[2] if i.level == "error"]):
-                best = (fixed, fix_notes, issues, thoughts)
-            if not errors or not cfg["auto_repair"] or attempt == 2:
-                break
-            turns = turns + [("assistant", fixed), ("user", core.build_repair_message(errors), 0)]
-
-        fixed, fix_notes, issues, thoughts = best
-        report = core.report_markdown(issues, fix_notes, fixed)
+            else:
+                result = event[1:]
+        fixed, fix_notes, issues, checks, thoughts = result
+        report = core.report_markdown(issues, fix_notes, fixed, checks)
         if any(i.level == "error" for i in issues):
             status = ("⚠️ Finished, but the format check still finds problems (see below). Generate again, set "
                       "Thinking to low, or edit the prompt and press Re-check.")
+        elif any(not c.ok for c in checks):
+            status = "✅ Done; see *Matches your request* below for points to look at."
         else:
             status = "✅ Done. Copy the prompt with the button in its top-right corner."
         if cfg["save_prompts"] and fixed.strip():
@@ -638,11 +659,49 @@ def describe(mode_label, img1, img2, backend_label, api_url, api_key, api_model,
         yield gr.update(), f"❌ {type(exc).__name__}: {exc}"
 
 
-def recheck(prompt, mode_label, duration, shots, dialogue, music, silent):
-    req = _request(mode_label, "", duration, "adaptive", shots, "Auto", "auto", "auto", dialogue, "", music, "",
-                   silent, "", "", 0)
-    fixed, notes = core.autofix(prompt or "", req)
-    return fixed, core.report_markdown(core.validate(fixed, req), notes, fixed)
+def recheck(prompt, mode_label, img1, img2, idea, duration, aspect, shots, camera, amplitude, speed, dialogue,
+            dialogue_language, music, music_text, silent, style, notes):
+    req = _request(mode_label, idea, duration, aspect, shots, camera, amplitude, speed, dialogue, dialogue_language,
+                   music, music_text, silent, style, notes, 0)
+    fixed, fix_notes = core.autofix(prompt or "", req)
+    return fixed, core.report_markdown(core.validate(fixed, req), fix_notes, fixed, core.fidelity(fixed, req))
+
+
+def run_selftest(img1, backend_label, api_url, api_key, api_model, thinking, temperature, top_p, min_p, max_tokens,
+                 auto_repair, save_prompts):
+    """Runs the built-in basic prompts through the model. Yields (summary, details)."""
+    _stop.clear()
+    cfg = _cfg(backend_label, api_url, api_key, api_model, thinking, temperature, top_p, min_p, max_tokens,
+               auto_repair, save_prompts)
+    cfg = dict(cfg, save_prompts=False)
+    encoded = [_image_data_uri(img1, params["max_image_side"])] if img1 is not None else []
+    results = []
+    for case in selftest.CASES:
+        if _stop.is_set():
+            break
+        if case.needs_picture and not encoded:
+            results.append(selftest.Result(case, skipped="add a picture as Picture 1 to run this one"))
+            continue
+        yield selftest.summary_markdown(results) + f"\n\n⏳ Running **{case.name}**…", selftest.details_text(results)
+        req = selftest.make_request(case, n_images=len(encoded) if case.needs_picture else 0)
+        try:
+            outcome = None
+            for event in _pipeline(req, encoded if case.needs_picture else [], cfg):
+                if event[0] == "done":
+                    outcome = event
+            if outcome is None:
+                results.append(selftest.Result(case, error="stopped"))
+                continue
+            _, prompt, _notes, issues, checks, _thoughts = outcome
+            results.append(selftest.Result(case, prompt, issues, checks))
+        except H3Error as exc:
+            results.append(selftest.Result(case, error=str(exc)))
+            if "No model is loaded" in str(exc) or "Could not reach" in str(exc):
+                break
+        except Exception as exc:
+            logger.exception("H3 I2V Director: self-test case failed")
+            results.append(selftest.Result(case, error=f"{type(exc).__name__}: {exc}"))
+    yield selftest.summary_markdown(results), selftest.details_text(results)
 
 
 def stop():
@@ -755,6 +814,17 @@ def ui():
             with gr.Accordion("Model thinking", open=False):
                 thinking_box = gr.Textbox(label="Thinking / discarded text", lines=8, interactive=False)
 
+    with gr.Accordion("🧪 Self-test: check the loaded model against the H3 rules", open=False):
+        gr.Markdown(
+            "Runs basic plain-language ideas through the model, exactly like *Generate*, and checks every answer "
+            "against the official H3 format and against what was asked (camera, shots, dialogue word for word, "
+            "silence, music). Text-only tests always run; the picture tests use *Picture 1* if you added one. "
+            "Takes a few minutes."
+        )
+        selftest_btn = gr.Button("Run self-test")
+        selftest_summary = gr.Markdown("")
+        selftest_details = gr.Textbox(label="Prompts and findings", lines=14, interactive=False, show_copy_button=True)
+
     with gr.Accordion("Model and backend settings", open=False):
         with gr.Row():
             backend = gr.Radio(list(BACKENDS), value=BACKEND_LABEL.get(params["backend"], "TextGen (loaded model)"),
@@ -799,7 +869,8 @@ def ui():
         model_status, None, status_model, queue=False)
     clear_notes.click(lambda: "", None, notes, queue=False)
     stop_btn.click(stop, None, None, queue=False)
-    recheck_btn.click(recheck, [prompt, mode, duration, shots, dialogue, music, silent], [prompt, report])
+    selftest_btn.click(run_selftest, [img1] + settings_inputs, [selftest_summary, selftest_details])
+    recheck_btn.click(recheck, [prompt] + request_inputs, [prompt, report])
     save_btn.click(save_settings, settings_inputs + [llama_server_path, model_file, mmproj_file, gpu_profile,
                                                      vram_budget, autoload], save_status)
 

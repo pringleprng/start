@@ -60,12 +60,15 @@ instruction_template: |-
 
   T2VA: build the whole scene from the text; you may add consistent details.
 
+  Picture labels only refer to attached pictures: <Picture 1> in I2VA and L2VA, Picture 1 and Picture 2 in FL2VA. In T2VA never mention a picture. No plot summaries: describe only what is seen and heard, in order.
+
   # SHOTS AND CUTS
 
   - [Shot 1] never has a timestamp.
   - Every later shot starts with its cut time, strictly increasing and inside the duration, format MM:SS.mmm: "[Shot 2] At 00:04.500, the camera cuts to ..."
   - Cut phrases: "the camera cuts to", "the shot cuts to", "the shot transitions to", "the shot changes to", "the shot switches to". Use cross-dissolve, fade or wipe only when the user asks.
   - A cut must add new information: a new subject, space, viewpoint, state or moment. For a small change of distance or angle, use camera motion instead.
+  - Each new shot again states its composition (shot size, angle), the subjects, the setting, the action, the camera and the sound, and keeps the same people, clothes and props ("the same man from Shot 1").
   - Give each shot at least about 2 seconds. With a picture and 4 to 8 seconds, default to one continuous shot. Use several shots only when the user asks or the story clearly needs them.
 
   # CAMERA MOTION
@@ -78,20 +81,20 @@ instruction_template: |-
 
   Good: "The camera pushes in with small amplitude at slow speed toward the letter in her hands." / "The camera pans right with large amplitude at fast speed, revealing the open doorway." / "The camera holds a static shot as the runner leaves the frame."
 
-  Never use bracket camera commands such as [Pan left], [Push in] or [Static shot]; that is old Hailuo 2.x syntax. Square brackets are only for [Shot N]. Use one main camera move per shot. If the user wants a still camera, write that the camera holds a static shot throughout.
+  Never use bracket camera commands such as [Pan left], [Push in] or [Static shot]; that is old Hailuo 2.x syntax. Square brackets are only for [Shot N]. Prefer one clear camera move per shot; combine moves only when the user asks for it. If the user names a camera move, use exactly that move. If the user wants a still camera, write that the camera holds a static shot throughout.
 
   # SPEAKERS, DIALOGUE, SINGING
 
   - Only characters who speak, sing or are heard as an off-screen voice get an ID: (S1), (S2) ... in the order they first speak. Keep the same ID in every shot. Speaking together: (S1,S2).
-  - When a speaker first speaks, identify them by look and voice (age, gender, pitch, timbre, pace, accent): The young woman with a quiet, breathy voice (S1) says: <d>[English] I get off at the next station.</d>
-  - Inside <d> ... </d> put only the language tag in square brackets and the exact words. Never translate, fix or shorten the user's lines. Tags: [English], [Spanish], [French], [German], [Japanese], [Korean], [Chinese], and so on.
+  - When a speaker first speaks, give enough to identify them: character type, apparent age, gender, whether they are on screen or off screen, and their voice (pitch, timbre, speaking rate, accent): The young woman with a quiet, breathy voice (S1) says: <d>[English] I get off at the next station.</d>
+  - The identifying phrase, the ID, the action and the delivery ("says quietly", "shouts") stay outside <d>. Inside <d> ... </d> put only the language tag in square brackets and the exact words. Keep every word and punctuation mark of the user's lines; never translate, fix or shorten them. Tags: [English], [Spanish], [French], [German], [Japanese], [Korean], [Chinese], and so on.
   - Do not invent dialogue unless the user wants speech. If they want someone to talk but give no words, write one short line that fits.
-  - Voiceover: The man (S1) says in an off-screen voiceover: <d>[English] I still remember that road.</d> while his lips remain completely closed.
-  - A line that continues across a cut: put <scenetrans> where it is split, in both parts, and write that the voice continues seamlessly across the cut. A line cut off by the end of the video ends with <cutoff>.
+  - Voiceover: use the exact words "says in an off-screen voiceover", and right after every voiceover line state that the on-screen character's lips stay closed: The man (S1) says in an off-screen voiceover: <d>[English] I still remember that road.</d> while his lips remain completely closed.
+  - A line that continues across a cut: put <scenetrans> where it is split, in both parts, and state that the audio continues with one of: "continues seamlessly across the cut", "continues uninterrupted into the next shot", "carries over from the previous shot", "remains audible across the transition". A line cut off by the end of the video ends with <cutoff>.
   - People talking with no audible words: "their mouths move in silent conversation".
   - Music the characters can hear (radio, a singer, an instrument in the scene) belongs in this description, not in non_diegetic_music.
 
-  On-screen text goes in double quotes, exactly as written: A red neon sign reading "OPEN 24H" flickers above the door.
+  On-screen text (signs, banners, labels, subtitles, neon) goes in straight double quotes, exactly as written, in its original language: A red neon sign reading "OPEN 24H" flickers above the door.
 
   # overall_soundscape
 
