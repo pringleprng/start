@@ -205,17 +205,33 @@ Under the output you get two checks:
   pictures, 1–4 sentences of soundscape, and 1–3 sentences of music without mood words.
   ❌ = error, ⚠️ = note, 🔧 = fixed automatically.
 - **Matches your request**: the shot count, camera move, amplitude and speed you chose; your lines word for
-  word with the right language tag; no invented dialogue; silence / no music when asked; your style; and
-  how many key words of your idea the description contains (synonyms are fine, so that one is only a hint).
+  word with the right language tag; no invented dialogue; silence / no music when asked; your style; the
+  **people and actions of your idea** (see below); and how many key words of your idea the description
+  contains (synonyms are fine, so that one is only a hint).
+
+**People are kept exactly.** The tab reads the people and actions from your idea and spells them out for the
+model. For *"a woman standing next to a girl, the woman hands the girl a cup"* it asks for: exactly one woman
+(an adult) and one girl (a child), called "the woman" and "the girl" every time, and the woman hands, the girl
+receives. The check then flags:
+- a girl that became a woman ("young woman", "two women");
+- a missing or added person;
+- an action the wrong way round (the girl handing the cup to the woman);
+- a "She …" sentence when two females are in the scene and it could mean either;
+- two people of the same kind not told apart.
+
+Two women are told apart by your own words ("the older woman" / "the younger woman") or by a visible
+feature ("the woman in the red coat"), the way MiniMax's own example prompts label each person. This works for
+English ideas (woman, man, girl, boy, child, baby, teenager, mother, father, daughter, son, grandmother, …);
+ideas in other languages still get the rules, without this extra check.
 
 If either check finds a real problem, the tab sends the list back to the model once and keeps the better
 answer (*Auto-repair*). You can also edit the prompt by hand and press **Re-check / fix**. Every prompt is
 saved to `user_data/logs/h3_prompts/` (with a `.json` of the settings).
 
-**🧪 Self-test** (accordion under the buttons) runs six basic plain-language ideas through your loaded
+**🧪 Self-test** (accordion under the buttons) runs eight basic plain-language ideas through your loaded
 model, exactly like *Generate*, and shows a pass/fail table. They cover a simple idea, a static camera with no
-music, two shots with a spoken line, complete silence, and with a picture in *Picture 1* also push in and a
-Spanish line. Run it once after installing to see how well Inkling follows the H3 rules on your machine.
+music, two shots with a spoken line, complete silence, a woman handing a girl a cup, two women told apart, and
+with a picture in *Picture 1* also push in and a Spanish line. Run it once after installing to see how well Inkling follows the H3 rules on your machine.
 
 **Thinking**: *off* is fastest and fine for most ideas. *low* or *medium* lets Inkling plan first, which helps
 complex multi-shot ideas, at the cost of time.

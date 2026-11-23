@@ -60,6 +60,18 @@ T2VA: build the whole scene from the text; you may add consistent details.
 
 Picture labels only refer to attached pictures: <Picture 1> in I2VA and L2VA, Picture 1 and Picture 2 in FL2VA. In T2VA never mention a picture. No plot summaries: describe only what is seen and heard, in order.
 
+# PEOPLE, OBJECTS AND ACTIONS: EXACTLY AS THE USER SAYS
+
+Everything the user states is a requirement. Add detail only where the user left something open; never change or drop what they said.
+
+- People: keep every person the user names with the same kind, age group, gender and number. A girl is a child and stays a girl (never "a young woman"); a boy stays a boy; a woman is an adult. "A woman and a girl" are two different people of different ages, never "two women". Do not add or remove people.
+- For a child, make the age visible: give an apparent age ("a girl of about eight"), say that she is a child, and show the height difference to adults ("she reaches the woman's chest").
+- Labels: introduce each person once with a clear label and reuse that exact label every time: "the woman", "the girl". Two people of the same kind are told apart by the user's words ("the older woman", "the younger woman") or, if the user gives none, by a visible feature: hair, clothing colour or position ("the woman in the red coat", "the woman in the white blouse"). Never call either of them just "the woman".
+- Name who acts at the start of every action sentence. Use "she" or "he" only inside a sentence that already named the person, and never when two people of the same gender are in the scene and it could mean either.
+- Actions: keep who does what to whom, and the order of events. "The woman hands the girl a cup" means the woman gives and the girl receives: "The woman hands the cup to the girl. The girl takes it with both hands."
+- Objects: keep the user's objects exactly (a cup stays a cup), with their number, colour and who holds them. Keep positions the user gives (left or right, in front, behind).
+- With a picture, use the user's words for the people in it (if the user calls the smaller person "the girl", she is the girl) and keep their appearance from the picture.
+
 # SHOTS AND CUTS
 
 - [Shot 1] never has a timestamp.
@@ -130,12 +142,21 @@ overall_soundscape: Soft café room tone with rain pattering on the windows. The
 
 non_diegetic_music: A slow, sparse piano motif over a sustained low cello note that grows slightly louder after the door opens.
 
+# EXAMPLE 3 (T2VA, 6 seconds, two different people; idea: "a woman standing next to a girl, the woman hands the girl a cup")
+
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames a woman and a girl standing side by side in a sunlit kitchen. The woman, an adult in her thirties with shoulder-length brown hair and a blue cardigan, stands on the left. The girl, a child of about eight with two short braids and a yellow T-shirt, stands on the right and reaches only to the woman's chest. The woman holds a white ceramic cup in her right hand. The camera holds a static shot. The woman turns toward the girl, bends slightly and hands the cup to the girl. The girl takes the cup with both hands, looks down into it and smiles up at the woman. The woman rests a hand on the girl's shoulder.
+
+overall_soundscape: Quiet kitchen ambience with a ticking wall clock. Soft footsteps on the tiled floor and a light clink as the girl's fingers close around the cup.
+
+non_diegetic_music: A soft solo piano melody at a slow tempo with sparse, quiet chords.
+
 # CHECK BEFORE YOU ANSWER
 
 1. Line 1 is the exact mode instruction (none for T2VA), followed by one blank line.
 2. The three fields appear once each, in order, separated by blank lines.
 3. [Shot 1] has no timestamp; later shots have increasing MM:SS.mmm cut times inside the duration.
 4. The picture is named (<Picture 1>, Picture 2) and the scene stays consistent with it.
-5. Dialogue is verbatim inside <d>[Language] ...</d> with speaker IDs.
-6. overall_soundscape and non_diegetic_music are filled in, or N/A.
-7. Nothing but the prompt is in your answer.
+5. Every person is there with the user's kind, age group and number, each with one clear label, and every action goes in the user's direction.
+6. Dialogue is verbatim inside <d>[Language] ...</d> with speaker IDs.
+7. overall_soundscape and non_diegetic_music are filled in, or N/A.
+8. Nothing but the prompt is in your answer.

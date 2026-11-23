@@ -42,6 +42,18 @@ overall_soundscape: N/A
 
 non_diegetic_music: N/A""",
 
+    "woman-and-girl": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames a woman and a girl standing next to each other on a sunny garden patio. The woman, an adult in her forties with short grey-blonde hair and a green linen shirt, stands on the left, holding a red enamel cup. The girl, a child of about seven with curly black hair and a white sundress, stands on the right and reaches just above the woman's waist. The camera pushes in with small amplitude at slow speed. The woman crouches to the girl's height and hands the red cup to the girl. The girl wraps both small hands around the cup, lifts it carefully and takes a sip, then grins at the woman. The woman smiles back and brushes a curl from the girl's forehead.
+
+overall_soundscape: Birds chirp in the garden and leaves rustle in a light breeze. The enamel cup clinks softly against a ring on the woman's finger as it changes hands, followed by a small slurp.
+
+non_diegetic_music: A light ukulele pattern at a moderate tempo with soft finger snaps.""",
+
+    "two-women": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames two women who sit across from each other at a small round cafe table by a sunny window. The older woman, in her sixties with silver hair in a low bun and a burgundy cardigan, sits on the left. The younger woman, in her twenties with a dark brown bob and a white blouse, sits on the right. A white porcelain teapot and two cups stand between them. The camera holds a static shot. The older woman lifts the teapot with both hands and pours tea for the younger woman, a thin amber stream filling the cup in front of her. The younger woman smiles, wraps her fingers around the warm cup and nods her thanks. The older woman sets the teapot down and folds her hands on the table.
+
+overall_soundscape: Soft cafe chatter and the clink of distant cutlery fill the room. Tea trickles into the porcelain cup, followed by the light tap of the teapot returning to the table.
+
+non_diegetic_music: A slow solo acoustic guitar melody with light brushed percussion.""",
+
     # the picture: a young woman with curly red hair in a green knit sweater on a park bench in autumn
     "picture-push-in": """For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
@@ -179,6 +191,53 @@ class BrokenAnswersAreCaught(unittest.TestCase):
     def test_style_missing(self):
         self.caught("text-basic", REFERENCE["text-basic"].replace("Live-action, cinematic, a low wide shot frames",
                                                                   "A red fox and"), "style and composition")
+
+    # --- people kept exactly (woman vs girl, two women) ---
+
+    def test_girl_turned_into_young_woman(self):
+        text = REFERENCE["woman-and-girl"]
+        for old, new in (("a girl", "a young woman"), ("The girl", "The young woman"), ("the girl", "the young woman")):
+            text = text.replace(old, new)
+        self.caught("woman-and-girl", text, "the girl is missing")
+        self.caught("woman-and-girl", text, "\"young woman\" appears")
+
+    def test_girl_turned_into_second_woman(self):
+        text = REFERENCE["woman-and-girl"].replace("frames a woman and a girl", "frames two women")
+        self.caught("woman-and-girl", text, "several women")
+
+    def test_action_reversed(self):
+        text = REFERENCE["woman-and-girl"].replace(
+            "The woman crouches to the girl's height and hands the red cup to the girl.",
+            "The girl reaches up and hands the red cup to the woman.")
+        self.caught("woman-and-girl", text, "Action reversed")
+
+    def test_ambiguous_she(self):
+        text = REFERENCE["woman-and-girl"].replace("The girl wraps both small hands", "She wraps both small hands")
+        self.caught("woman-and-girl", text, "start with \"She\"")
+
+    def test_two_women_not_told_apart(self):
+        text = REFERENCE["two-women"].replace("The older woman lifts the teapot", "The woman lifts the teapot")
+        self.caught("two-women", text, "called just \"the woman\"")
+
+    def test_two_women_labels_missing(self):
+        text = REFERENCE["two-women"].replace("The younger woman", "The second woman").replace("the younger woman",
+                                                                                               "the second woman")
+        self.caught("two-women", text, "missing: younger")
+
+    def test_pour_action_missing(self):
+        text = REFERENCE["two-women"].replace(
+            "lifts the teapot with both hands and pours tea for the younger woman, a thin amber stream filling the cup "
+            "in front of her", "sips her tea")
+        self.caught("two-women", text, "pours tea for the younger woman")
+
+    def test_request_names_the_people(self):
+        msg = core.build_user_message(st.make_request(CASES["woman-and-girl"]))
+        self.assertIn("exactly one woman (an adult), one girl (a child)", msg)
+        self.assertIn('Call them "the woman" and "the girl" every time', msg)
+        self.assertIn("keep the direction exactly: the woman hands the girl a cup", msg)
+        msg = core.build_user_message(st.make_request(CASES["two-women"]))
+        self.assertIn("exactly two women (adults)", msg)
+        self.assertIn('call them "the older woman" and "the younger woman" every time', msg)
 
     def test_idea_not_followed(self):
         text = REFERENCE["text-silence"].replace("an empty playground at night", "a busy beach at noon")
