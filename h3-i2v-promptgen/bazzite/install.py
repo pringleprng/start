@@ -28,6 +28,8 @@ Optional environment variables: GITHUB_TOKEN (GitHub rate limit), HF_TOKEN (gate
 from __future__ import annotations
 
 import argparse
+import base64
+import io
 import json
 import os
 import platform
@@ -68,6 +70,11 @@ H3_FILES = [
 ]
 EXTENSION = "h3_i2v_director"
 USER_AGENT = "h3-i2v-director-installer"
+
+# The one-file setup script (h3-director-setup.sh) carries the H3 files here as a base64 tar.gz,
+# written by tools/build_setup_script.py. Empty in install.py itself, which uses the files next
+# to it (or downloads them from GitHub when run on its own).
+EMBEDDED_FILES = ""
 
 
 # --------------------------------------------------------------------------------------
@@ -477,20 +484,38 @@ def install_model(user_data: Path, repo: str, quant: str, ram_gb: float, search_
 # H3 files, settings, launchers
 # --------------------------------------------------------------------------------------
 
+def _embedded_files() -> dict[str, bytes]:
+    """{"user_data/...": content} from EMBEDDED_FILES (one-file setup script)."""
+    data = base64.b64decode("".join(EMBEDDED_FILES.split()))
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        for member in tar.getmembers():
+            if member.isfile() and member.name in H3_FILES:
+                files[member.name] = tar.extractfile(member).read()
+    missing = set(H3_FILES) - set(files)
+    if missing:
+        raise InstallError(f"the setup script is incomplete (missing {', '.join(sorted(missing))})")
+    return files
+
+
 def install_h3_files(user_data: Path, source_repo: str, branch: str) -> None:
     step("H3 I2V Director tab")
-    local_root = Path(__file__).resolve().parent.parent
+    # run from a pipe (curl … | bash) there is no __file__
+    local_root = Path(__file__).resolve().parent.parent if "__file__" in globals() else None
+    embedded = _embedded_files() if EMBEDDED_FILES else {}
+    source = "built into the setup script" if embedded else ""
     for rel in H3_FILES:
         dest = user_data / rel.removeprefix("user_data/")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        src = local_root / rel
-        if src.exists():
-            shutil.copyfile(src, dest)
+        if rel in embedded:
+            dest.write_bytes(embedded[rel])
+        elif local_root and (local_root / rel).exists():
+            shutil.copyfile(local_root / rel, dest)
         else:
             url = f"{GITHUB_RAW}/{source_repo}/{branch}/h3-i2v-promptgen/" + urllib.request.quote(rel)
             download(url, dest)
-    say(f"  ✓ installed into {user_data}" + ("" if (local_root / H3_FILES[0]).exists()
-                                             else f" (from {source_repo}@{branch})"))
+            source = f"from {source_repo}@{branch}"
+    say(f"  ✓ installed into {user_data}" + (f" ({source})" if source else ""))
 
 
 def update_cmd_flags(user_data: Path) -> None:
@@ -574,7 +599,7 @@ def write_launchers(base: Path, desktop: bool) -> Path:
 # --------------------------------------------------------------------------------------
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(prog=os.environ.get("H3_PROG") or None, description=__doc__.split("\n\n")[0])
     ap.add_argument("--dir", default=str(Path.home() / "AI" / "textgen"), help="install folder (default ~/AI/textgen)")
     ap.add_argument("--repo", default=DEFAULT_REPO, help=f"Hugging Face GGUF repo (default {DEFAULT_REPO})")
     ap.add_argument("--quant", default="auto",

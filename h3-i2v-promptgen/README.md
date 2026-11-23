@@ -14,24 +14,29 @@ format. The tab then checks and repairs the format, so the result is ready to pa
   the format their own prompt rewriter (H3-Context-IR) produces.
 - **Modes:** I2VA (picture = first frame), FL2VA (first + last frame), L2VA (picture = last frame),
   T2VA (text only).
-- **Made for Bazzite + RTX 5080 (16 GB VRAM) with 16 GB RAM:** a one-command installer that picks a model
+- **Made for Bazzite + RTX 5080 (16 GB VRAM) with 16 GB RAM:** a one-file setup script that picks a model
   size your memory can hold, and a VRAM budget, so Inkling fits on the GPU next to Fooocus.
 
-## Bazzite + RTX 5080: one-command install
+## Bazzite + RTX 5080: install with one script
 
 Needs Bazzite's **NVIDIA image** (the `-nvidia-open` variant, which RTX 50-series cards require), driver 570
 or newer (`nvidia-smi` shows it) and about **20 GB of free disk**. 16 GB of RAM works (see
 [Fitting on the GPU next to Fooocus](#fitting-on-the-gpu-next-to-fooocus)).
 Nothing is installed system-wide; everything goes into `~/AI/textgen`.
 
+Download the one script and run it (in a normal terminal, as your normal user, no `sudo`):
+
 ```bash
-git clone --depth 1 --branch ccr-df6920e9-t3vfcw https://github.com/pringleprng/start.git ~/AI/h3-src
-python3 ~/AI/h3-src/h3-i2v-promptgen/bazzite/install.py
+curl -fLo ~/h3-director-setup.sh https://raw.githubusercontent.com/pringleprng/start/ccr-df6920e9-t3vfcw/h3-i2v-promptgen/h3-director-setup.sh
+bash ~/h3-director-setup.sh
 ```
 
-(Or download only `bazzite/install.py` and run it: it then fetches the tab's files from GitHub itself.)
+`h3-director-setup.sh` is everything in one file: the installer plus the H3 tab, its rules, the Chat
+template and the preset, built in. Options go after it, for example `bash ~/h3-director-setup.sh --vram-budget 7`
+(`--help` lists them all). Or without saving the file first:
+`curl -fsSL https://raw.githubusercontent.com/pringleprng/start/ccr-df6920e9-t3vfcw/h3-i2v-promptgen/h3-director-setup.sh | bash`
 
-The installer:
+The script:
 
 1. checks the GPU and driver with `nvidia-smi`;
 2. installs **TextGen** portable (CUDA build, its own Python) into `~/AI/textgen/textgen-<version>/`;
@@ -49,7 +54,7 @@ The installer:
 6. creates **TextGen H3 Director** in the app menu and `~/AI/textgen/start-h3-director.sh`.
 
 `user_data` (models, settings, prompts) sits next to the TextGen folders, so TextGen updates keep it.
-Re-run the installer any time to update; finished downloads are skipped, interrupted ones resume.
+Run the script again any time to update; finished downloads are skipped, interrupted ones resume.
 
 Start **TextGen H3 Director**. Inkling loads by itself (watch the status line at the top of the
 **H3 I2V Director** tab), then you're ready.
@@ -64,7 +69,7 @@ Fooocus (SDXL) needs roughly 8 GB of the VRAM while it generates. The setup is m
 - **Model size:** the installer takes a ~10–11 GB Inkling file instead of the 16 GB Q4_K_M, which would not
   fit in 16 GB of RAM next to Fooocus. Inkling is a mixture-of-experts model (26 B parameters, about 3.4 B
   active per token), so it stays usable at ~3 bits. It is somewhat less precise than Q4_K_M, and the
-  format check repairs most structural slips. With 32 GB RAM later, run the installer again with
+  format check repairs most structural slips. With 32 GB RAM later, run `h3-director-setup.sh` again with
   `--quant Q4_K_M`.
 - **VRAM budget:** with the default *Fit next to Fooocus* profile, Inkling (model + vision file + context)
   uses at most the budget (default **6.5 GB**). When you press *Load Inkling* (or at start-up), the tab
@@ -85,19 +90,21 @@ Fooocus (SDXL) needs roughly 8 GB of the VRAM while it generates. The setup is m
   closed most of the time, raise it or use *Whole GPU*: more VRAM = faster.
 - RAM is the tight part. Bazzite's compressed swap (zram) catches short peaks. If the system starts to
   stutter while both run, close other big programs (browsers with many tabs, games), or install a smaller
-  file: `install.py --quant IQ2_M`.
+  file: `bash ~/h3-director-setup.sh --quant IQ2_M`.
 
 ## What's in this folder
 
 | Path | What it is |
 |---|---|
-| `bazzite/install.py` | One-command installer for Bazzite / x86-64 Linux with an NVIDIA GPU |
+| `h3-director-setup.sh` | **The one-file setup**: installer + all H3 files built in (generated, don't edit) |
+| `bazzite/install.py` | The installer's source (also runs on its own from a clone) |
+| `tools/build_setup_script.py` | Rebuilds `h3-director-setup.sh` after changing the installer or any H3 file |
 | `user_data/extensions/h3_i2v_director/` | The **H3 I2V Director** tab (TextGen extension) |
 | `user_data/extensions/h3_i2v_director/system_prompt.md` | The H3 rules the model follows (edit to taste) |
 | `user_data/instruction-templates/Inkling 2 - H3 Director.yaml` | Same rules for TextGen's normal **Chat** tab |
 | `user_data/presets/H3 Director.yaml` | Sampling preset (temperature 0.8, top_p 0.95, min_p 0.05) |
 | `tools/build_template.py` | Rebuilds the Chat template after you edit `system_prompt.md` |
-| `tests/` | Tests (`python -m unittest discover -s h3-i2v-promptgen/tests`) |
+| `tests/` | Tests (`python -m unittest discover -s h3-i2v-promptgen/tests`), incl. a check that the setup script is up to date |
 
 ## Manual setup (Windows, other Linux, Mac)
 
@@ -126,7 +133,7 @@ Once TextGen ships a newer llama.cpp you can skip this step.
    - Windows, other GPU: `...-bin-win-vulkan-x64.zip` (or `...-bin-win-cpu-x64.zip` for CPU only)
    - Linux + NVIDIA: `...-bin-ubuntu-cuda-12.8-x64.tar.gz` and `cudart-llama-bXXXXX-bin-ubuntu-cuda-12.8-x64.tar.gz`
      (the CUDA runtime; needed unless you have the CUDA toolkit installed). Other: `...-bin-ubuntu-vulkan-x64.tar.gz`
-     or `...-bin-ubuntu-x64.tar.gz`. On Bazzite, use [the installer](#bazzite--rtx-5080-one-command-install) instead.
+     or `...-bin-ubuntu-x64.tar.gz`. On Bazzite, use [the setup script](#bazzite--rtx-5080-install-with-one-script) instead.
    - Mac (Apple Silicon): `...-bin-macos-arm64.tar.gz`
 3. Unpack it into `user_data/llama-cpp/` inside TextGen (it creates a folder like `llama-b12638/`). Put the
    files from the `cudart-…` download **into that same folder, next to `llama-server`**.
@@ -263,7 +270,7 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 | *No model is loaded* | *Model and GPU* → *Load Inkling* (or switch the backend to a server URL) |
 | Installer: *llama.cpp does not see the GPU* (Bazzite) | You are on a non-NVIDIA Bazzite image or the driver isn't running: check `nvidia-smi`; RTX 50 cards need the `-nvidia-open` image |
 | Fooocus runs out of GPU memory | *Model and GPU* → lower the VRAM budget (e.g. 5) → *Load Inkling* (or *Unload* while Fooocus works) |
-| The PC stutters / swaps with both running | 16 GB RAM is tight: close other big programs, or reinstall with `--quant IQ2_M` |
+| The PC stutters / swaps with both running | 16 GB RAM is tight: close other big programs, or run `bash ~/h3-director-setup.sh --quant IQ2_M` |
 | *Could not reach http://…/chat/completions* | Start llama-server, check the URL and port |
 | ⚠️ *Finished, but the format check still finds problems* | Generate again, set Thinking to *low*, or fix by hand and press *Re-check* |
 | The tab is missing | Session tab → tick `h3_i2v_director` → apply and restart |
@@ -273,3 +280,5 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 - Change the rules in `user_data/extensions/h3_i2v_director/system_prompt.md` (keep it free of `{` and `}`),
   restart TextGen, then run `python tools/build_template.py` and copy the new template so the Chat tab matches.
 - Settings saved with *Save settings* go to `user_data/extensions/h3_i2v_director/settings.json`.
+- After changing the installer or any file under `user_data/`, run `python tools/build_setup_script.py` so
+  `h3-director-setup.sh` carries the new version (the tests fail until you do).
