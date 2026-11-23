@@ -14,19 +14,77 @@ format. The tab then checks and repairs the format, so the result is ready to pa
   the format their own prompt rewriter (H3-Context-IR) produces.
 - **Modes:** I2VA (picture = first frame), FL2VA (first + last frame), L2VA (picture = last frame),
   T2VA (text only).
+- **Made for Bazzite + RTX 5080, next to Fooocus:** a one-command installer, one-click loading with a GPU
+  profile that leaves VRAM for Fooocus, and a button that takes your newest Fooocus image as the first frame.
+
+## Bazzite + RTX 5080: one-command install
+
+Needs Bazzite's **NVIDIA image** (the `-nvidia-open` variant, which RTX 50-series cards require), driver 570
+or newer (`nvidia-smi` shows it), about **25 GB of free disk** and ideally **32 GB of RAM or more**.
+Nothing is installed system-wide; everything goes into `~/AI/textgen`.
+
+```bash
+git clone --depth 1 --branch ccr-df6920e9-t3vfcw https://github.com/pringleprng/start.git ~/AI/h3-src
+python3 ~/AI/h3-src/h3-i2v-promptgen/bazzite/install.py
+```
+
+(Or download only `bazzite/install.py` and run it: it then fetches the tab's files from GitHub itself.)
+
+The installer:
+
+1. checks the GPU and driver with `nvidia-smi`;
+2. installs **TextGen** portable (CUDA build, its own Python) into `~/AI/textgen/textgen-<version>/`;
+3. installs **llama.cpp** (newest release, b12638 or later, needed for Inkling 2) as the CUDA 12.8 build, which
+   has native RTX 50-series kernels. It puts NVIDIA's CUDA runtime (`libcudart`, `libcublas`) next to it,
+   because Bazzite has no CUDA toolkit; only the NVIDIA driver is needed. It then checks that llama.cpp
+   sees the card (`CUDA0: NVIDIA GeForce RTX 5080`);
+4. downloads **Inkling 2 Mini Uncensored** (`Q4_K_M`, about 16 GB) and its **mmproj** (vision) from Hugging Face
+   (`--repo` and `--quant` choose others);
+5. adds the H3 tab, turns it on in `CMD_FLAGS.txt`, and sets Inkling to load automatically;
+6. creates **TextGen H3 Director** in the app menu and `~/AI/textgen/start-h3-director.sh`.
+
+`user_data` (models, settings, prompts) sits next to the TextGen folders, so TextGen updates keep it.
+Re-run the installer any time to update; finished downloads are skipped, interrupted ones resume.
+
+Start **TextGen H3 Director**. Inkling loads by itself (watch the status line at the top of the
+**H3 I2V Director** tab), then you're ready.
+`start-h3-director.sh --browser` runs without the desktop window (open http://127.0.0.1:7860);
+`--listen` makes it reachable from other devices on your network.
+
+### Running Fooocus at the same time
+
+The 5080 has 16 GB of VRAM. Fooocus (SDXL) wants about 8 GB of it, and the Inkling Q4_K_M file alone is about 16 GB.
+The **Model and GPU** panel at the top of the tab handles that:
+
+| GPU profile | What it does | When |
+|---|---|---|
+| **Auto** (default) | *Share* if Fooocus is running when Inkling loads, otherwise *Full* | most of the time |
+| **Full GPU** | llama.cpp fits as much of Inkling into VRAM as possible (1 GB left free) | Fooocus closed |
+| **Share GPU with Fooocus** | every layer on the GPU except the MoE experts, which stay in system RAM (`--cpu-moe`); only 8 of 128 experts run per token, so it stays quick | Fooocus open |
+
+- **Load Inkling** and **Unload (free the GPU)** switch between them in seconds without restarting
+  TextGen. Unload before a game or a big Fooocus batch.
+- The status line shows the GPU's memory in use and whether Fooocus is running. It warns you when Fooocus
+  was started after Inkling was loaded on the full profile.
+- **🖼 Use latest Fooocus image** puts your newest Fooocus picture into *Picture 1* (in FL2VA mode the
+  two newest go into Picture 1 and 2). It finds Fooocus' `outputs` folder from the running Fooocus,
+  its `config.txt`, or `~/Fooocus`. Set the folder under *Model and backend settings* if yours is elsewhere.
+- Fooocus itself on an RTX 50-series card needs a CUDA 12.8 build of PyTorch. Its default install uses an
+  older one that fails with "no kernel image is available".
 
 ## What's in this folder
 
 | Path | What it is |
 |---|---|
+| `bazzite/install.py` | One-command installer for Bazzite / x86-64 Linux with an NVIDIA GPU |
 | `user_data/extensions/h3_i2v_director/` | The **H3 I2V Director** tab (TextGen extension) |
 | `user_data/extensions/h3_i2v_director/system_prompt.md` | The H3 rules the model follows (edit to taste) |
 | `user_data/instruction-templates/Inkling 2 - H3 Director.yaml` | Same rules for TextGen's normal **Chat** tab |
 | `user_data/presets/H3 Director.yaml` | Sampling preset (temperature 0.8, top_p 0.95, min_p 0.05) |
 | `tools/build_template.py` | Rebuilds the Chat template after you edit `system_prompt.md` |
-| `tests/` | Tests for the format checker (`python -m unittest discover -s h3-i2v-promptgen/tests`) |
+| `tests/` | Tests (`python -m unittest discover -s h3-i2v-promptgen/tests`) |
 
-## Setup
+## Manual setup (Windows, other Linux, Mac)
 
 You need a PC (Windows, Linux or Mac), not a phone. Inkling 2 Mini has 26 B parameters but only about
 3.4 B are active per token, so it runs on a CPU, faster with a GPU. Plan for **32 GB of RAM** (or RAM +
@@ -51,10 +109,12 @@ Once TextGen ships a newer llama.cpp you can skip this step.
    - Windows + NVIDIA: `llama-bXXXXX-bin-win-cuda-12.4-x64.zip` and `cudart-llama-bin-win-cuda-12.4-x64.zip`.
      If the CUDA zip only contains `ggml-cuda.dll`, also download `llama-bXXXXX-bin-win-cpu-x64.zip`.
    - Windows, other GPU: `...-bin-win-vulkan-x64.zip` (or `...-bin-win-cpu-x64.zip` for CPU only)
-   - Linux: `...-bin-ubuntu-cuda-12.8-x64.tar.gz` (NVIDIA), `...-bin-ubuntu-vulkan-x64.tar.gz` or `...-bin-ubuntu-x64.tar.gz`
+   - Linux + NVIDIA: `...-bin-ubuntu-cuda-12.8-x64.tar.gz` and `cudart-llama-bXXXXX-bin-ubuntu-cuda-12.8-x64.tar.gz`
+     (the CUDA runtime; needed unless you have the CUDA toolkit installed). Other: `...-bin-ubuntu-vulkan-x64.tar.gz`
+     or `...-bin-ubuntu-x64.tar.gz`. On Bazzite, use [the installer](#bazzite--rtx-5080-one-command-install) instead.
    - Mac (Apple Silicon): `...-bin-macos-arm64.tar.gz`
-3. Unpack **everything into one folder** inside TextGen: `user_data/llama-cpp/` (any subfolder is fine,
-   for example `user_data/llama-cpp/b12638/`).
+3. Unpack it into `user_data/llama-cpp/` inside TextGen (it creates a folder like `llama-b12638/`). Put the
+   files from the `cudart-…` download **into that same folder, next to `llama-server`**.
 
 The H3 tab finds `llama-server` there by itself and makes TextGen's llama.cpp loader use it. You don't
 replace any TextGen files. Delete the folder to go back. (A file or folder path can also be set under
@@ -90,15 +150,15 @@ the newer llama-server.
 
 ### 5. Load the model
 
-**Model** tab:
-- Model: `Inkling-2-Mini-Uncensored-…Q4_K_M.gguf`
-- Multimodal (vision): the `mmproj-…` file
-- ctx-size: **16384** (or more)
-- gpu-layers: leave on auto (or 0 for CPU only)
-- click **Load**
+In the **H3 I2V Director** tab, open **Model and GPU**. The Inkling GGUF and its mmproj are picked
+automatically. Choose a GPU profile (see [Running Fooocus at the same time](#running-fooocus-at-the-same-time))
+and press **Load Inkling**. Tick *Load automatically when TextGen starts* and press *Save settings* to skip
+this next time.
 
-The top of the **H3 I2V Director** tab should now show `vision on · Inkling native format`
-(press *Refresh model status* if it still shows the old state).
+(The normal Model tab works too: Model = the Inkling GGUF, Multimodal (vision) = the `mmproj-…` file,
+ctx-size 16384, Load.)
+
+The status line at the top should now show `vision on · Inkling native format`.
 
 ## Using it
 
@@ -182,10 +242,13 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 
 | Message | Fix |
 |---|---|
-| `unknown model architecture: 'inkling2'` when loading | Step 2: newer llama.cpp in `user_data/llama-cpp/`, restart TextGen, load the model from the Model tab |
-| *The loaded model can't see pictures* | Pick the `mmproj-…` file under *Multimodal (vision)* in the Model tab and load again |
+| `unknown model architecture: 'inkling2'` when loading | Step 2: newer llama.cpp in `user_data/llama-cpp/`, restart TextGen, load with *Load Inkling* (not `--model`) |
+| *The loaded model can't see pictures* | Pick the `mmproj-…` file in *Model and GPU* and press *Load Inkling* again |
 | *The request needs about N tokens, but the model was loaded with a context of …* | Load the model with ctx-size 16384 or more |
-| *No model is loaded* | Model tab → Load (or switch the backend to a server URL) |
+| *No model is loaded* | *Model and GPU* → *Load Inkling* (or switch the backend to a server URL) |
+| Installer: *llama.cpp does not see the GPU* (Bazzite) | You are on a non-NVIDIA Bazzite image or the driver isn't running: check `nvidia-smi`; RTX 50 cards need the `-nvidia-open` image |
+| Fooocus runs out of memory / gets slow | *Model and GPU* → *Share GPU with Fooocus* → *Load Inkling* (or *Unload* while Fooocus works) |
+| Fooocus: "no kernel image is available" on the 5080 | Fooocus needs a CUDA 12.8 PyTorch for RTX 50 cards; that's a Fooocus setting, not this tab |
 | *Could not reach http://…/chat/completions* | Start llama-server, check the URL and port |
 | ⚠️ *Finished, but the format check still finds problems* | Generate again, set Thinking to *low*, or fix by hand and press *Re-check* |
 | The tab is missing | Session tab → tick `h3_i2v_director` → apply and restart |
