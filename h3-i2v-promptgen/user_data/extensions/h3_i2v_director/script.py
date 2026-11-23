@@ -65,7 +65,7 @@ params = {
     "mmproj_file": "",                  # its vision projector in user_data/mmproj (empty = auto-detect)
     "gpu_profile": "fit",               # fit / full (see h3_system.PROFILES)
     "vram_budget_gb": 6.5,              # VRAM Inkling may use in the "fit" profile (model + vision + context)
-    "ctx_size": 10240,                  # an H3 request with a picture and a repair pass needs about 7k tokens
+    "ctx_size": 12288,                  # rules + picture + answer + a repair pass need about 9k tokens
     "autoload": False,                  # load Inkling when TextGen starts
 }
 SAVED_KEYS = ("backend", "api_url", "api_key", "api_model", "thinking", "temperature", "top_p", "min_p",

@@ -30,7 +30,7 @@ overall_soundscape: A quiet kitchen with the low hum of a refrigerator. Soft thu
 
 non_diegetic_music: N/A""",
 
-    "text-dialogue-2-shots": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames a man in his thirties with short dark hair and a navy raincoat who waits under a glass bus stop shelter on a rainy city street at dusk, rain streaming off the shelter roof and headlights smearing across the wet asphalt behind him. He checks his phone, glances at the screen, then raises it to his ear. The camera pushes in with small amplitude at slow speed as the man with a calm, slightly hurried voice (S1) says: <d>[English] I'm on my way.</d> He lowers the phone and looks down the street. [Shot 2] At 00:05.500, the camera cuts to a wide shot from behind the same man at the shelter as a red city bus pulls in from the left, its wipers sweeping and headlights glaring through the rain, arriving at the curb and stopping with its doors folding open.
+    "text-dialogue-2-shots": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames a man with short dark hair and a navy raincoat who waits under a glass bus stop shelter on a rainy city street at dusk, rain streaming off the shelter roof and headlights smearing across the wet asphalt behind him. He checks his phone, glances at the screen, then raises it to his ear. The camera pushes in with small amplitude at slow speed as the man with a calm, slightly hurried voice (S1) says: <d>[English] I'm on my way.</d> He lowers the phone and looks down the street. [Shot 2] At 00:05.500, the camera cuts to a wide shot from behind the same man at the shelter as a red city bus pulls in from the left, its wipers sweeping and headlights glaring through the rain, arriving at the curb and stopping with its doors folding open.
 
 overall_soundscape: Heavy rain drums on the shelter roof and splashes in the gutters while traffic hisses past on the wet road. The bus engine grows louder, its brakes squeal softly and the doors open with a pneumatic hiss.
 
@@ -42,13 +42,13 @@ overall_soundscape: N/A
 
 non_diegetic_music: N/A""",
 
-    "woman-and-girl": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames a woman and a girl standing next to each other on a sunny garden patio. The woman, an adult in her forties with short grey-blonde hair and a green linen shirt, stands on the left, holding a red enamel cup. The girl, a child of about seven with curly black hair and a white sundress, stands on the right and reaches just above the woman's waist. The camera pushes in with small amplitude at slow speed. The woman crouches to the girl's height and hands the red cup to the girl. The girl wraps both small hands around the cup, lifts it carefully and takes a sip, then grins at the woman. The woman smiles back and brushes a curl from the girl's forehead.
+    "woman-and-girl": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames a woman and a girl standing next to each other on a sunny garden patio. The woman, with short grey-blonde hair and a green linen shirt, stands on the left, holding a red enamel cup. The girl, with curly black hair and a white sundress, stands on the right. The camera pushes in with small amplitude at slow speed. The woman crouches down and hands the red cup to the girl. The girl wraps both small hands around the cup, lifts it carefully and takes a sip, then grins at the woman. The woman smiles back and brushes a curl from the girl's forehead.
 
 overall_soundscape: Birds chirp in the garden and leaves rustle in a light breeze. The enamel cup clinks softly against a ring on the woman's finger as it changes hands, followed by a small slurp.
 
 non_diegetic_music: A light ukulele pattern at a moderate tempo with soft finger snaps.""",
 
-    "two-women": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames two women who sit across from each other at a small round cafe table by a sunny window. The older woman, in her sixties with silver hair in a low bun and a burgundy cardigan, sits on the left. The younger woman, in her twenties with a dark brown bob and a white blouse, sits on the right. A white porcelain teapot and two cups stand between them. The camera holds a static shot. The older woman lifts the teapot with both hands and pours tea for the younger woman, a thin amber stream filling the cup in front of her. The younger woman smiles, wraps her fingers around the warm cup and nods her thanks. The older woman sets the teapot down and folds her hands on the table.
+    "two-women": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames two women who sit across from each other at a small round cafe table by a sunny window. The older woman, with silver hair in a low bun and a burgundy cardigan, sits on the left. The younger woman, with a dark brown bob and a white blouse, sits on the right. A white porcelain teapot and two cups stand between them. The camera holds a static shot. The older woman lifts the teapot with both hands and pours tea for the younger woman, a thin amber stream filling the cup in front of her. The younger woman smiles, wraps her fingers around the warm cup and nods her thanks. The older woman sets the teapot down and folds her hands on the table.
 
 overall_soundscape: Soft cafe chatter and the clink of distant cutlery fill the room. Tea trickles into the porcelain cup, followed by the light tap of the teapot returning to the table.
 
@@ -113,7 +113,7 @@ class BrokenAnswersAreCaught(unittest.TestCase):
         found = [m for m in messages(result) if needle in m]
         self.assertTrue(found, f"expected a finding containing {needle!r}, got {messages(result)}")
         self.assertFalse(result.passed if needle not in ("Hailuo 2.x", "moods", "never speaks", "off-screen voiceover",
-                                                         "cut phrase", "dissolve", "style and composition") else False)
+                                                         "cut phrase", "dissolve", "style and composition", "Symbols such as") else False)
 
     def test_bracket_camera(self):
         self.caught("text-basic", REFERENCE["text-basic"].replace("The camera tracks alongside it", "[Truck right] It moves"),
@@ -207,7 +207,7 @@ class BrokenAnswersAreCaught(unittest.TestCase):
 
     def test_action_reversed(self):
         text = REFERENCE["woman-and-girl"].replace(
-            "The woman crouches to the girl's height and hands the red cup to the girl.",
+            "The woman crouches down and hands the red cup to the girl.",
             "The girl reaches up and hands the red cup to the woman.")
         self.caught("woman-and-girl", text, "Action reversed")
 
@@ -230,13 +230,49 @@ class BrokenAnswersAreCaught(unittest.TestCase):
             "in front of her", "sips her tea")
         self.caught("two-women", text, "pours tea for the younger woman")
 
+    def test_age_added(self):
+        text = REFERENCE["woman-and-girl"].replace("The girl, with curly black hair",
+                                                   "The girl, a child of about seven with curly black hair")
+        self.caught("woman-and-girl", text, "ages were added")
+        text = REFERENCE["woman-and-girl"].replace("The woman, with short", "The woman, in her forties with short")
+        self.caught("woman-and-girl", text, "ages were added")
+
+    def test_other_word_for_the_girl(self):
+        text = REFERENCE["woman-and-girl"].replace("The girl wraps both", "The child wraps both")
+        self.caught("woman-and-girl", text, "\"child\" appears")
+
+    def test_extra_person(self):
+        text = REFERENCE["woman-and-girl"].replace("The woman smiles back", "A man walks past behind them. The woman smiles back")
+        self.caught("woman-and-girl", text, "\"man\" appears")
+
+    def test_positions_missing(self):
+        text = REFERENCE["woman-and-girl"].replace(", stands on the left,", ",").replace(", stands on the right.", ".")
+        text = text.replace("next to each other", "together")
+        result = st.check(CASES["woman-and-girl"], text)
+        self.assertTrue(any("say where each person is" in c.message for c in result.checks), messages(result))
+
+    def test_text_not_asked_for(self):
+        text = REFERENCE["woman-and-girl"].replace("The camera pushes in", 'A banner reading "Happy Day" hangs behind them. The camera pushes in')
+        self.caught("woman-and-girl", text, "On-screen text was added")
+
+    def test_symbols(self):
+        text = REFERENCE["text-basic"].replace("walks to the right through the powder", "walks right -> through the powder")
+        self.caught("text-basic", text, "Symbols such as")
+
+    def test_too_long(self):
+        long_text = REFERENCE["text-basic"].replace("A quiet winter morning", "A quiet winter morning. " * 330 + "Still")
+        self.caught("text-basic", long_text, "H3 accepts at most 7000")
+
     def test_request_names_the_people(self):
         msg = core.build_user_message(st.make_request(CASES["woman-and-girl"]))
-        self.assertIn("exactly one woman (an adult), one girl (a child)", msg)
+        self.assertIn("exactly one woman and one girl", msg)
+        self.assertIn('Use the words "woman" and "girl" for them every time', msg)
+        self.assertIn("add no ages", msg)
+        self.assertNotIn("a child)", msg)
         self.assertIn('Call them "the woman" and "the girl" every time', msg)
         self.assertIn("keep the direction exactly: the woman hands the girl a cup", msg)
         msg = core.build_user_message(st.make_request(CASES["two-women"]))
-        self.assertIn("exactly two women (adults)", msg)
+        self.assertIn("exactly two women.", msg)
         self.assertIn('call them "the older woman" and "the younger woman" every time', msg)
 
     def test_idea_not_followed(self):

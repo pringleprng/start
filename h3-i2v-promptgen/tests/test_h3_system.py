@@ -34,12 +34,12 @@ class Profiles(unittest.TestCase):
         self.assertEqual(s.fit_margin_mb("fit", 6.5, 900, []), 1024)
 
     def test_load_args(self):
-        args = s.load_args("mmproj-x.gguf", 10240, 9000)
+        args = s.load_args("mmproj-x.gguf", 12288, 9000)
         self.assertEqual(args["gpu_layers"], -1)
         self.assertEqual(args["fit_target"], "9000")
         self.assertFalse(args["cpu_moe"])
         self.assertEqual(args["mmproj"], "mmproj-x.gguf")
-        self.assertEqual(args["ctx_size"], 10240)
+        self.assertEqual(args["ctx_size"], 12288)
         self.assertEqual(args["cache_type"], "q8_0")
         self.assertIsNone(s.load_args("", 8192, 1024)["mmproj"])
 

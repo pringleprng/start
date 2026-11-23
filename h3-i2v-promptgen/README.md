@@ -77,7 +77,7 @@ Fooocus (SDXL) needs roughly 8 GB of the VRAM while it generates. The setup is m
   whether Fooocus is already running or starts later. llama.cpp keeps the attention layers on the GPU and
   moves MoE expert weights to system RAM first. About 5 GB of the model sits in VRAM and the remaining
   ~5 GB in RAM.
-- **Context:** 10k tokens instead of 16k. An H3 request with a picture and a repair pass needs about 7k.
+- **Context:** 12k tokens instead of 16k. The rules, a picture, the answer and a repair pass need about 9k.
 
 | GPU profile | What it does |
 |---|---|
@@ -209,24 +209,21 @@ Under the output you get two checks:
   **people and actions of your idea** (see below); and how many key words of your idea the description
   contains (synonyms are fine, so that one is only a hint).
 
-**People are kept exactly.** The tab reads the people and actions from your idea and spells them out for the
-model. For *"a woman standing next to a girl, the woman hands the girl a cup"* it asks for: exactly one woman
-(an adult) and one girl (a child), called "the woman" and "the girl" every time, and the woman hands, the girl
-receives. The check then flags:
-- a girl that became a woman ("young woman", "two women");
-- a missing or added person;
+**People are kept exactly, in your words.** The tab reads the people and actions from your idea and spells
+them out for the model. For *"a woman standing next to a girl, the woman hands the girl a cup"* it asks for:
+exactly one woman and one girl, called "the woman" and "the girl" every time, each on her own side of the frame
+(left / right), no ages added, and the woman hands while the girl receives. The check then flags:
+- another word for one of them ("the child", "the lady", "young woman", "two women");
+- added ages ("of about seven", "in her forties", "an adult");
+- a missing or extra person;
 - an action the wrong way round (the girl handing the cup to the woman);
 - a "She …" sentence when two females are in the scene and it could mean either;
 - two people of the same kind not told apart.
 
-Two women are told apart by your own words ("the older woman" / "the younger woman") or by a visible
-feature ("the woman in the red coat"), the way MiniMax's own example prompts label each person. This works for
-English ideas (woman, man, girl, boy, child, baby, teenager, mother, father, daughter, son, grandmother, …);
-ideas in other languages still get the rules, without this extra check.
-
-If either check finds a real problem, the tab sends the list back to the model once and keeps the better
-answer (*Auto-repair*). You can also edit the prompt by hand and press **Re-check / fix**. Every prompt is
-saved to `user_data/logs/h3_prompts/` (with a `.json` of the settings).
+Two women are told apart by your own words ("the older woman" / "the younger woman") or by clothing or
+position ("the woman in the red coat"), the way MiniMax's own example prompts label each person. This check
+works for English ideas (woman, man, girl, boy, child, baby, teenager, mother, father, daughter, son,
+grandmother, …); ideas in other languages still get the rules, without the extra check.
 
 **🧪 Self-test** (accordion under the buttons) runs eight basic plain-language ideas through your loaded
 model, exactly like *Generate*, and shows a pass/fail table. They cover a simple idea, a static camera with no
@@ -248,7 +245,8 @@ overall_soundscape: Steady rain hisses on the pavement and drums on the umbrella
 non_diegetic_music: A light, plucked ukulele melody at a moderate tempo with soft hand claps.
 ```
 
-The rules the model follows (full text in `system_prompt.md`):
+The rules the model follows (full text in `system_prompt.md`): MiniMax's official H3 guide, plus what
+MiniMax's own H3 video skills and H3 users add:
 
 - Line 1 is MiniMax's fixed instruction for the mode, exact to the character. FL2VA and L2VA lines carry the
   last shot number and the duration (`8.00`). T2VA has no instruction line.
@@ -265,13 +263,23 @@ The rules the model follows (full text in `system_prompt.md`):
 - Speakers get IDs and a voice: `The young woman with a quiet voice (S1) says: <d>[English] …</d>`. Your
   lines are never translated or changed. Voiceover: `says in an off-screen voiceover: … while his lips remain
   completely closed`.
-- Visible text in double quotes, verbatim. Concrete details, no hype words ("masterpiece", "8K", …).
+- Visible text in double quotes, verbatim. No subtitles, captions, logos or text you didn't ask for: H3 draws
+  whatever text is described. Plain sentences only, no arrows, slashes, "+" or markdown (H3 can draw them too).
+- People in your words, each on a fixed side of the frame, with the same wording every time. Only the speaker's
+  mouth moves during a line.
+- The whole clip is filled (no empty opening, time words for the beats, a stated end state). Each new shot
+  continues from the previous one, keeping positions and one light direction.
+- Concrete details, no hype words ("masterpiece", "8K", …). If something must *not* happen, one short
+  "No …" sentence (H3 has no separate negative prompt). The whole prompt stays under 7,000 characters,
+  H3's limit.
 
 The checker in `h3_core.py` enforces the structure. MiniMax's own published T2VA and I2VA example prompts pass
 it unchanged.
 
 > This is the format the H3 model itself reads. MiniMax's site and API may still run their own rewriter
-> over whatever you paste. A prompt already in this format leaves it nothing to guess.
+> over whatever you paste. A prompt already in this format leaves it nothing to guess. If you use the API with
+> **H3-Max**, a third-party guide reports a `prompt_expansion_mode` setting; `disabled` would send the prompt
+> as it is (not confirmed by MiniMax's docs). With a picture, the video takes the picture's aspect ratio.
 
 ## Using the normal Chat tab instead
 

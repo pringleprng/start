@@ -336,18 +336,17 @@ def people_requirements(idea: str) -> list[str]:
     parts = []
     for p in people:
         sing, plural, _ = PEOPLE[p.cls]
-        age = " (a child)" if p.cls in CHILD_CLASSES else (" (an adult)" if p.cls in ADULT_CLASSES else "")
-        if p.count == 1:
-            parts.append(f"one {sing}{age}")
-        else:
-            parts.append(f"{_COUNT_WORDS.get(p.count, str(p.count))} {plural}{age.replace('a child', 'children').replace('an adult', 'adults')}")
-    lines = [f"- People: exactly {', '.join(parts)}. No more, no fewer, same age group and gender; never turn a "
-             "child into an adult or merge two people into one."]
+        parts.append(f"one {sing}" if p.count == 1 else f"{_COUNT_WORDS.get(p.count, str(p.count))} {plural}")
+    words = " and ".join(f'"{PEOPLE[p.cls][0]}"' for p in people)
+    lines = [f"- People: exactly {' and '.join(parts)}. No more, no fewer, and never merge two people into one. "
+             f"Use the words {words} for them every time, never another word for the same person, and add no ages "
+             "or age words (adult, child, young, little, \"of about eight\")."]
     labels = [f'"the {PEOPLE[p.cls][0]}"' for p in people if p.count == 1]
     total = sum(p.count for p in people)
     if labels and total > 1:
         lines.append(f"- Call them {' and '.join(labels)} every time; name the person at the start of every action "
-                     "sentence instead of \"she\" or \"he\" when two people could be meant.")
+                     "sentence instead of \"she\" or \"he\" when two people could be meant. Give each person a side "
+                     "of the frame at the start (left or right) and keep it.")
     elif labels:
         lines.append(f"- Call this person {labels[0]} every time.")
     for p in people:
@@ -358,8 +357,8 @@ def people_requirements(idea: str) -> list[str]:
                 lines.append(f"- The {PEOPLE[p.cls][1]} must be told apart: call them {named} every time, as the user "
                              f"does, and show the difference visibly. Never call one of them just \"the {sing}\".")
             else:
-                lines.append(f"- The {PEOPLE[p.cls][1]} must be told apart: give each {sing} a visible feature (age, "
-                             f"hair, clothing colour or position) and use that same label every time, e.g. \"the {sing} "
+                lines.append(f"- The {PEOPLE[p.cls][1]} must be told apart: give each {sing} a clothing colour or a "
+                             f"position and use that same label every time, e.g. \"the {sing} "
                              f"in the red coat\" and \"the {sing} in the white blouse\". Never call one of them just "
                              f"\"the {sing}\".")
     for a in parse_actions(idea):
@@ -904,6 +903,14 @@ def validate(prompt: str, req: Request) -> list[Issue]:
     hype = sorted({w for w in HYPE_WORDS if re.search(r"(?<![a-z])" + re.escape(w) + r"(?![a-z])", lowered)})
     if hype:
         warn("Abstract hype words add nothing for H3: " + ", ".join(hype) + ".")
+    if len(prompt or "") > 7000:
+        err(f"The prompt has {len(prompt)} characters; H3 accepts at most 7000.")
+    elif len(prompt or "") > 6000:
+        warn(f"The prompt has {len(prompt)} characters, close to H3's limit of 7000.")
+    symbols = sorted(set(re.findall(r"->|=>|→|←|⇒|•|\s\+\s|#\w|\*\*?|[\U0001F300-\U0001FAFF]", DIALOGUE_RE.sub(" ", prompt or ""))))
+    if symbols:
+        warn("Symbols such as " + " ".join(x.strip() for x in symbols[:5]) +
+             " can be drawn as text by H3; write plain sentences.")
     words = len(description.split())
     if description and words < 60:
         warn(f"integrated_multimodal_description is short ({words} words); H3 follows detailed timelines better.")
@@ -1038,6 +1045,14 @@ def fidelity(prompt: str, req: Request) -> list[Check]:
 
     checks += people_checks(desc, req.idea)
 
+    outside_dialogue = DIALOGUE_RE.sub(" ", desc)
+    quoted = re.findall(r"\"([^\"]{1,80})\"", outside_dialogue)
+    asks_text = re.search(r"[\"“”]|\b(?:text|sign|signs|title|caption|subtitles?|logo|banner|label|words?|writing|"
+                          r"written|reads|reading|letters|poster|neon)\b", req.idea or "", re.I)
+    if quoted and not asks_text:
+        checks.append(Check(False, "On-screen text was added (" + ", ".join(f'"{q}"' for q in quoted[:3]) +
+                            ") although your idea has none; H3 would draw it.", repair=True))
+
     keywords = idea_keywords(req.idea)
     if keywords:
         stems = _stem_text(desc)
@@ -1089,10 +1104,41 @@ def people_checks(desc: str, idea: str) -> list[Check]:
         present = any(re.search(rf"\b{re.escape(f)}\b", low) for f in (sing, plural, *alts))
         what = f"{_COUNT_WORDS.get(p.count, p.count)} {sing if p.count == 1 else plural}"
         if not present:
-            extra = " (a child must stay a child, not become a woman or man)" if p.cls in CHILD_CLASSES else ""
-            checks.append(Check(False, f"People: the {sing} is missing{extra}.", repair=True))
+            checks.append(Check(False, f"People: the {sing} is missing (keep the word \"{sing}\").", repair=True))
         else:
             checks.append(Check(True, f"People: {what}"))
+
+    # other words for the same people, or extra people
+    idea_low = (idea or "").lower()
+    for word, cls in sorted(_WORD_TO_CLASS.items()):
+        if cls in wanted or word in idea_low.split():
+            continue
+        if re.search(rf"\b{re.escape(word)}\b(?!-)(?!\s+(?:blue|pink|teeth|steps|powder|grand|carrot))", low):
+            checks.append(Check(False, f"People: \"{word}\" appears, but your idea only has "
+                                       + " and ".join(PEOPLE[c][0] if wanted[c] == 1 else PEOPLE[c][1] for c in wanted)
+                                       + "; use your words and no extra people.", repair=True))
+
+    # ages the user did not write
+    person_words = "|".join(sorted((w for w in _WORD_TO_CLASS), key=len, reverse=True))
+    age_patterns = (
+        rf"\b(?:young|little|old|older|younger|elderly|middle-aged|teenage|grown|adult|small)\s+(?:{person_words})\b",
+        r"\b(?:of|aged)\s+(?:about|around|roughly|maybe)?\s*(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|"
+        r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|"
+        r"sixty|seventy|eighty)\b(?:\s+years?)?(?:\s+old)?",
+        r"\b\d+[- ]years?[- ]old\b",
+        r"\bin (?:her|his|their) (?:early |late |mid-|mid )?(?:teens|twenties|thirties|forties|fifties|sixties|"
+        r"seventies|eighties)\b",
+        r"\b(?:an adult|a child|the child|a kid|the kid|a teenager|a toddler)\b",
+    )
+    added_ages = []
+    for pat in age_patterns:
+        for m in re.finditer(pat, low):
+            phrase = m.group(0)
+            if phrase not in idea_low and not any(w in idea_low for w in phrase.split()[:1] if w not in ("of", "in", "a", "an", "the")):
+                added_ages.append(phrase)
+    if added_ages:
+        checks.append(Check(False, "People: ages were added (" + ", ".join(sorted(set(added_ages))[:4]) +
+                            "); keep just your words for them.", repair=True))
 
     # several of a kind where the idea has one (e.g. "two women" for a woman and a girl)
     kinds = set(wanted)
@@ -1110,7 +1156,9 @@ def people_checks(desc: str, idea: str) -> list[Check]:
         if (child in wanted and re.search(rf"\byoung {sing}\b", low)
                 and not re.search(rf"\byoung {sing}\b", (idea or "").lower())):
             checks.append(Check(False, f"People: \"young {sing}\" appears, but your idea has a {child}; "
-                                       f"a {child} is a child, not a young {sing}.", repair=True))
+                                       f"call her \"the {child}\"." if child == "girl" else
+                                       f"People: \"young {sing}\" appears, but your idea has a {child}; "
+                                       f"call him \"the {child}\".", repair=True))
 
     # two of the same kind must be told apart
     for p in people:
@@ -1127,6 +1175,14 @@ def people_checks(desc: str, idea: str) -> list[Check]:
         if bare:
             checks.append(Check(False, f"People: one of the {plural} is called just \"the {sing}\" ({len(bare)}x); "
                                        f"give each {sing} her own label so H3 can tell them apart.", repair=True))
+
+    # two or more people: each one has a place in the frame
+    if sum(wanted.values()) >= 2:
+        placed = re.search(r"\b(?:on the left|on the right|to the left|to the right|left side|right side|"
+                           r"in the foreground|in the background|in front of|behind|beside|next to|side by side|"
+                           r"across from|opposite)\b", low)
+        checks.append(Check(placed is not None, "People: each person has a place in the frame" if placed else
+                            "People: say where each person is (left / right) so H3 keeps them apart"))
 
     # "She ..." / "He ..." at the start of a sentence when two people could be meant
     sentences = _sentences_of(desc)

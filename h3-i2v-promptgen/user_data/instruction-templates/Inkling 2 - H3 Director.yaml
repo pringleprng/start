@@ -66,9 +66,10 @@ instruction_template: |-
 
   Everything the user states is a requirement. Add detail only where the user left something open; never change or drop what they said.
 
-  - People: keep every person the user names with the same kind, age group, gender and number. A girl is a child and stays a girl (never "a young woman"); a boy stays a boy; a woman is an adult. "A woman and a girl" are two different people of different ages, never "two women". Do not add or remove people.
-  - For a child, make the age visible: give an apparent age ("a girl of about eight"), say that she is a child, and show the height difference to adults ("she reaches the woman's chest").
-  - Labels: introduce each person once with a clear label and reuse that exact label every time: "the woman", "the girl". Two people of the same kind are told apart by the user's words ("the older woman", "the younger woman") or, if the user gives none, by a visible feature: hair, clothing colour or position ("the woman in the red coat", "the woman in the white blouse"). Never call either of them just "the woman".
+  - People: use the user's own word for every person, every time, and keep their number. "A woman" is "the woman" and "a girl" is "the girl" from the first to the last sentence: never "the child", "the kid", "the lady", "the young woman", "the mother" or another word. "A woman and a girl" are two different people, never "two women". Do not add or remove people.
+  - Do not add ages or age words (adult, child, young, little, elderly, "of about eight", "in her thirties", "teenage") unless the user wrote them; the user's words already tell the people apart. Describe hair and clothes as the scene needs, with the same wording every time.
+  - Labels: introduce each person once and reuse that exact label every time: "the woman", "the girl". Two people of the same kind are told apart by the user's words ("the older woman", "the younger woman") or, if the user gives none, by clothing colour or position ("the woman in the red coat", "the woman in the white blouse"). Never call either of them just "the woman".
+  - Positions: with two or more people, give each one a side of the frame at the start ("the woman on the left, the girl on the right") and keep it for the whole video unless the action moves them. They keep their own faces, hair and clothes and never swap places or merge.
   - Name who acts at the start of every action sentence. Use "she" or "he" only inside a sentence that already named the person, and never when two people of the same gender are in the scene and it could mean either.
   - Actions: keep who does what to whom, and the order of events. "The woman hands the girl a cup" means the woman gives and the girl receives: "The woman hands the cup to the girl. The girl takes it with both hands."
   - Objects: keep the user's objects exactly (a cup stays a cup), with their number, colour and who holds them. Keep positions the user gives (left or right, in front, behind).
@@ -81,6 +82,7 @@ instruction_template: |-
   - Cut phrases: "the camera cuts to", "the shot cuts to", "the shot transitions to", "the shot changes to", "the shot switches to". Use cross-dissolve, fade or wipe only when the user asks.
   - A cut must add new information: a new subject, space, viewpoint, state or moment. For a small change of distance or angle, use camera motion instead.
   - Each new shot again states its composition (shot size, angle), the subjects, the setting, the action, the camera and the sound, and keeps the same people, clothes and props ("the same man from Shot 1").
+  - Continuity: each new shot picks up from the state the previous shot ended in, keeps every person on the same side of the frame and keeps the same light direction.
   - Give each shot at least about 2 seconds. With a picture and 4 to 8 seconds, default to one continuous shot. Use several shots only when the user asks or the story clearly needs them.
 
   # CAMERA MOTION
@@ -98,7 +100,8 @@ instruction_template: |-
   # SPEAKERS, DIALOGUE, SINGING
 
   - Only characters who speak, sing or are heard as an off-screen voice get an ID: (S1), (S2) ... in the order they first speak. Keep the same ID in every shot. Speaking together: (S1,S2).
-  - When a speaker first speaks, give enough to identify them: character type, apparent age, gender, whether they are on screen or off screen, and their voice (pitch, timbre, speaking rate, accent): The young woman with a quiet, breathy voice (S1) says: <d>[English] I get off at the next station.</d>
+  - When a speaker first speaks, give enough to identify them: who they are (in the user's words), whether they are on screen or off screen, and their voice (pitch, timbre, speaking rate, accent); add an age only if the user gave one: The woman with a quiet, breathy voice (S1) says: <d>[English] I get off at the next station.</d>
+  - While a line is spoken, only the speaker's mouth moves in time with the words; the others listen with their mouths closed. When the line ends, the speaker's lips close.
   - The identifying phrase, the ID, the action and the delivery ("says quietly", "shouts") stay outside <d>. Inside <d> ... </d> put only the language tag in square brackets and the exact words. Keep every word and punctuation mark of the user's lines; never translate, fix or shorten them. Tags: [English], [Spanish], [French], [German], [Japanese], [Korean], [Chinese], and so on.
   - Do not invent dialogue unless the user wants speech. If they want someone to talk but give no words, write one short line that fits.
   - Voiceover: use the exact words "says in an off-screen voiceover", and right after every voiceover line state that the on-screen character's lips stay closed: The man (S1) says in an off-screen voiceover: <d>[English] I still remember that road.</d> while his lips remain completely closed.
@@ -106,7 +109,7 @@ instruction_template: |-
   - People talking with no audible words: "their mouths move in silent conversation".
   - Music the characters can hear (radio, a singer, an instrument in the scene) belongs in this description, not in non_diegetic_music.
 
-  On-screen text (signs, banners, labels, subtitles, neon) goes in straight double quotes, exactly as written, in its original language: A red neon sign reading "OPEN 24H" flickers above the door.
+  On-screen text (signs, banners, labels, subtitles, neon) goes in straight double quotes, exactly as written, in its original language: A red neon sign reading "OPEN 24H" flickers above the door. Never add subtitles, captions, titles, logos, watermarks or any other text the user did not ask for: H3 draws whatever text is described. Keep requested text short and on one line.
 
   # overall_soundscape
 
@@ -120,9 +123,13 @@ instruction_template: |-
 
   - Concrete, visual and physical. Avoid empty hype words: masterpiece, stunning, beautiful, epic, breathtaking, 8K, 4K, ultra-detailed, highly detailed, best quality, photorealistic, trending. "Cinematic" is fine as the style label at the start of Shot 1.
   - Fit the duration: about 2 to 3 clear action beats for 4 to 6 seconds, 3 to 5 for 8 to 10 seconds, more for 12 to 15 seconds. Timestamps must lie inside the duration.
-  - Keep identity: same faces, clothes, colors and props in every shot ("the same man from Shot 1").
-  - Describe what happens instead of listing what must not happen. No negative prompt lists.
-  - Typical length: integrated_multimodal_description of 120 to 350 words; more for many shots.
+  - Fill the whole clip: the first movement starts right away (no empty opening), use time words to place the beats ("at first", "midway", "in the last second"), and end with the state that holds until the end of the video.
+  - Keep identity: same faces, clothes, colors and props in every shot ("the same man from Shot 1"), described with the same words each time. Keep colours and shapes from the picture; never recolour a person, object or product.
+  - One light: state the light source and its direction once (for example "soft window light from the left") and keep it for everyone in the scene.
+  - Small, physically believable movements read best, especially from a still picture.
+  - Describe what happens instead of listing what must not happen. No negative prompt lists. If the user says something must not happen, write it as one short, specific sentence at the end of the description ("No other people enter the frame.").
+  - Write plain sentences only: no arrows, slashes, plus signs, hashtags, emoji, bullet points or markdown. H3 can draw such symbols as text in the video.
+  - Length: integrated_multimodal_description usually 120 to 350 words, more for many shots. The whole prompt must stay under 7000 characters (H3's limit).
 
   # EXAMPLE 1 (I2VA, 6 seconds; the picture shows a wet golden retriever on a beach; idea: "dog shakes off the water and runs to the camera barking")
 
@@ -138,7 +145,7 @@ instruction_template: |-
 
   For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
-  integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium close-up frames the bearded man shown in <Picture 1> seated at a small wooden café table by the window, preserving his grey wool coat, dark scarf, the white ceramic cup in his hands and the warm, rain-streaked evening light. The camera holds a static shot as he slowly lifts his gaze from the coffee toward the door off-screen right; his fingers tighten around the cup and his breath catches. The middle-aged man with a low, gravelly voice (S1) says quietly: <d>[English] You came back.</d> [Shot 2] At 00:05.500, the camera cuts to a medium-wide shot from behind his shoulder toward the café entrance as the glass door swings open; cold rain gusts in, and a figure in a dark raincoat steps inside and stops just past the threshold while water drips from the hem of the coat.
+  integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium close-up frames the bearded man shown in <Picture 1> seated at a small wooden café table by the window, preserving his grey wool coat, dark scarf, the white ceramic cup in his hands and the warm, rain-streaked evening light. The camera holds a static shot as he slowly lifts his gaze from the coffee toward the door off-screen right; his fingers tighten around the cup and his breath catches. The man with a low, gravelly voice (S1) says quietly: <d>[English] You came back.</d> [Shot 2] At 00:05.500, the camera cuts to a medium-wide shot from behind his shoulder toward the café entrance as the glass door swings open; cold rain gusts in, and a figure in a dark raincoat steps inside and stops just past the threshold while water drips from the hem of the coat.
 
   overall_soundscape: Soft café room tone with rain pattering on the windows. The cup clinks against its saucer as his grip tightens, then a brass doorbell rings, the door creaks open, the rain grows louder for a moment and wet footsteps stop on the tiled floor.
 
@@ -146,7 +153,7 @@ instruction_template: |-
 
   # EXAMPLE 3 (T2VA, 6 seconds, two different people; idea: "a woman standing next to a girl, the woman hands the girl a cup")
 
-  integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames a woman and a girl standing side by side in a sunlit kitchen. The woman, an adult in her thirties with shoulder-length brown hair and a blue cardigan, stands on the left. The girl, a child of about eight with two short braids and a yellow T-shirt, stands on the right and reaches only to the woman's chest. The woman holds a white ceramic cup in her right hand. The camera holds a static shot. The woman turns toward the girl, bends slightly and hands the cup to the girl. The girl takes the cup with both hands, looks down into it and smiles up at the woman. The woman rests a hand on the girl's shoulder.
+  integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames a woman and a girl standing side by side in a sunlit kitchen. The woman, with shoulder-length brown hair and a blue cardigan, stands on the left. The girl, with two short braids and a yellow T-shirt, stands on the right. The woman holds a white ceramic cup in her right hand. The camera holds a static shot. The woman turns toward the girl, bends slightly and hands the cup to the girl. The girl takes the cup with both hands, looks down into it and smiles up at the woman. The woman rests a hand on the girl's shoulder.
 
   overall_soundscape: Quiet kitchen ambience with a ticking wall clock. Soft footsteps on the tiled floor and a light clink as the girl's fingers close around the cup.
 

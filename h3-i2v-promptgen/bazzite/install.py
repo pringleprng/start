@@ -558,7 +558,7 @@ def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profi
     except (OSError, ValueError):
         settings = {}
     settings.update(llama_server_path=str(server), gpu_profile=profile, vram_budget_gb=budget, autoload=True,
-                    ctx_size=10240)
+                    ctx_size=12288)
     if model:
         settings["model_file"] = model
     if mmproj:
