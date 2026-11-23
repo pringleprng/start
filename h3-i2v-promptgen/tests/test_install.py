@@ -37,6 +37,40 @@ class ChooseFiles(unittest.TestCase):
         self.assertEqual(inst.choose_model_files(self.FILES, "IQ2_M"), ([], ""))
 
 
+class AutoSize(unittest.TestCase):
+    FILES = ["Inkling-Q4_K_M.gguf", "Inkling-Q3_K_M.gguf", "Inkling-IQ3_XXS.gguf", "Inkling-IQ2_M.gguf",
+             "Q8_0/Inkling-Q8_0-00001-of-00002.gguf", "Q8_0/Inkling-Q8_0-00002-of-00002.gguf",
+             "mmproj-Inkling-BF16.gguf", "README.md"]
+    SIZES = {"Inkling-Q4_K_M.gguf": 16.0e9, "Inkling-Q3_K_M.gguf": 12.9e9, "Inkling-IQ3_XXS.gguf": 10.1e9,
+             "Inkling-IQ2_M.gguf": 8.7e9, "Q8_0/Inkling-Q8_0-00001-of-00002.gguf": 14e9,
+             "Q8_0/Inkling-Q8_0-00002-of-00002.gguf": 13.8e9, "mmproj-Inkling-BF16.gguf": 0.9e9, "README.md": 10}
+
+    def test_limits(self):
+        self.assertEqual(inst.auto_size_limit_gb(16), 11.0)
+        self.assertEqual(inst.auto_size_limit_gb(32), inst.Q4_K_M_GB)
+        self.assertEqual(inst.auto_size_limit_gb(8), 6.0)
+
+    def test_16gb_ram_gets_iq3(self):
+        parts, total = inst.choose_by_size(self.FILES, self.SIZES, int(inst.auto_size_limit_gb(16) * 1e9))
+        self.assertEqual(parts, ["Inkling-IQ3_XXS.gguf"])
+
+    def test_32gb_ram_gets_q4(self):
+        parts, _ = inst.choose_by_size(self.FILES, self.SIZES, int(inst.auto_size_limit_gb(32) * 1e9))
+        self.assertEqual(parts, ["Inkling-Q4_K_M.gguf"])
+
+    def test_split_files_counted_together(self):
+        parts, total = inst.choose_by_size(self.FILES, self.SIZES, int(30e9))
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(total, 27.8e9)
+
+    def test_nothing_small_enough(self):
+        self.assertEqual(inst.choose_by_size(self.FILES, self.SIZES, int(5e9)), ([], 0))
+
+    def test_mmproj(self):
+        self.assertEqual(inst.choose_mmproj(["a-mmproj-F16.gguf", "mmproj-BF16.gguf", "x.gguf"]), "mmproj-BF16.gguf")
+        self.assertEqual(inst.choose_mmproj(["x.gguf"]), "")
+
+
 class CmdFlags(unittest.TestCase):
     def _run(self, text):
         d = Path(tempfile.mkdtemp())

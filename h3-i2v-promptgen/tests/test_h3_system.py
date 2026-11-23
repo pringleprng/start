@@ -10,26 +10,38 @@ import h3_system as s  # noqa: E402
 
 
 class Profiles(unittest.TestCase):
-    def test_small_is_default(self):
-        self.assertEqual(s.DEFAULT_PROFILE, "small")
-        self.assertEqual(s.resolve_profile("small"), "small")
+    GPU = [{"name": "NVIDIA GeForce RTX 5080", "used_mb": 800, "total_mb": 16303, "free_mb": 15503, "driver": "580"}]
+
+    def test_fit_is_default(self):
+        self.assertEqual(s.DEFAULT_PROFILE, "fit")
         self.assertEqual(s.resolve_profile("full"), "full")
-        self.assertEqual(s.resolve_profile("anything else"), "small")
+        self.assertEqual(s.resolve_profile("anything else"), "fit")
+
+    def test_budget_margin_gpu_free(self):
+        # 6.5 GB budget, 900 MB vision file: llama.cpp may use 6656 - 900 - 512 = 5244 MiB
+        self.assertEqual(s.fit_margin_mb("fit", 6.5, 900, self.GPU), 15503 - 5244)
+
+    def test_budget_margin_with_fooocus_loaded(self):
+        busy = [dict(self.GPU[0], used_mb=8800, free_mb=7503)]
+        self.assertEqual(s.fit_margin_mb("fit", 6.5, 900, busy), 7503 - 5244)
+
+    def test_budget_never_below_floor(self):
+        full = [dict(self.GPU[0], used_mb=13000, free_mb=3303)]
+        self.assertEqual(s.fit_margin_mb("fit", 6.5, 900, full), 512)
+
+    def test_full_and_no_gpu(self):
+        self.assertEqual(s.fit_margin_mb("full", 6.5, 900, self.GPU), 1024)
+        self.assertEqual(s.fit_margin_mb("fit", 6.5, 900, []), 1024)
 
     def test_load_args(self):
-        full = s.load_args("full", "mmproj-x.gguf", 16384, 1536)
-        self.assertEqual(full["gpu_layers"], -1)
-        self.assertEqual(full["fit_target"], "1536")
-        self.assertFalse(full["cpu_moe"])
-        self.assertEqual(full["mmproj"], "mmproj-x.gguf")
-        self.assertEqual(full["loader"], "llama.cpp")
-        small = s.load_args("small", "", 8192)
-        self.assertTrue(small["cpu_moe"])
-        self.assertGreater(small["gpu_layers"], 0)
-        self.assertNotIn("fit_target", small)
-        self.assertIsNone(small["mmproj"])
-        self.assertEqual(small["ctx_size"], 8192)
-        self.assertEqual(small["cache_type"], "q8_0")
+        args = s.load_args("mmproj-x.gguf", 10240, 9000)
+        self.assertEqual(args["gpu_layers"], -1)
+        self.assertEqual(args["fit_target"], "9000")
+        self.assertFalse(args["cpu_moe"])
+        self.assertEqual(args["mmproj"], "mmproj-x.gguf")
+        self.assertEqual(args["ctx_size"], 10240)
+        self.assertEqual(args["cache_type"], "q8_0")
+        self.assertIsNone(s.load_args("", 8192, 1024)["mmproj"])
 
 
 class PickFiles(unittest.TestCase):
@@ -48,7 +60,7 @@ class Vram(unittest.TestCase):
     def test_parse_gpus(self):
         out = "NVIDIA GeForce RTX 5080, 11264, 16303, 580.95.05\n"
         self.assertEqual(s.parse_gpus(out), [{"name": "NVIDIA GeForce RTX 5080", "used_mb": 11264,
-                                              "total_mb": 16303, "driver": "580.95.05"}])
+                                              "total_mb": 16303, "free_mb": 5039, "driver": "580.95.05"}])
 
     def test_parse_process_vram(self):
         out = "4242, 7980\n5150, 3412\n"

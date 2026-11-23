@@ -14,13 +14,14 @@ format. The tab then checks and repairs the format, so the result is ready to pa
   the format their own prompt rewriter (H3-Context-IR) produces.
 - **Modes:** I2VA (picture = first frame), FL2VA (first + last frame), L2VA (picture = last frame),
   T2VA (text only).
-- **Made for Bazzite + RTX 5080:** a one-command installer, and by default a small-VRAM mode, so it fits on
-  the GPU next to Fooocus.
+- **Made for Bazzite + RTX 5080 (16 GB VRAM) with 16 GB RAM:** a one-command installer that picks a model
+  size your memory can hold, and a VRAM budget, so Inkling fits on the GPU next to Fooocus.
 
 ## Bazzite + RTX 5080: one-command install
 
 Needs Bazzite's **NVIDIA image** (the `-nvidia-open` variant, which RTX 50-series cards require), driver 570
-or newer (`nvidia-smi` shows it), about **25 GB of free disk** and ideally **32 GB of RAM or more**.
+or newer (`nvidia-smi` shows it) and about **20 GB of free disk**. 16 GB of RAM works (see
+[Fitting on the GPU next to Fooocus](#fitting-on-the-gpu-next-to-fooocus)).
 Nothing is installed system-wide; everything goes into `~/AI/textgen`.
 
 ```bash
@@ -38,10 +39,13 @@ The installer:
    has native RTX 50-series kernels. It puts NVIDIA's CUDA runtime (`libcudart`, `libcublas`) next to it,
    because Bazzite has no CUDA toolkit; only the NVIDIA driver is needed. It then checks that llama.cpp
    sees the card (`CUDA0: NVIDIA GeForce RTX 5080`);
-4. downloads **Inkling 2 Mini Uncensored** (`Q4_K_M`, about 16 GB) and its **mmproj** (vision) from Hugging Face
-   (`--repo` and `--quant` choose others);
-5. adds the H3 tab, turns it on in `CMD_FLAGS.txt`, and sets Inkling to load automatically with the
-   small-VRAM profile, so it fits next to Fooocus (`--profile full` for the whole GPU instead);
+4. downloads **Inkling 2 Mini Uncensored** and its **mmproj** (vision) from Hugging Face. The size is
+   chosen from your RAM: the biggest file up to *RAM − 5 GB* (about **10–11 GB with 16 GB RAM**, a
+   ~3-bit quant such as IQ3_XXS; with 32 GB+ it takes Q4_K_M). It checks several uncensored uploads if the
+   first has no suitable size (`--quant Q4_K_M` or `--repo` to choose yourself);
+5. adds the H3 tab, turns it on in `CMD_FLAGS.txt`, and sets Inkling to load automatically within a
+   **6.5 GB VRAM budget**, so it fits next to Fooocus (`--vram-budget 7` to change it, `--profile full` for
+   the whole GPU);
 6. creates **TextGen H3 Director** in the app menu and `~/AI/textgen/start-h3-director.sh`.
 
 `user_data` (models, settings, prompts) sits next to the TextGen folders, so TextGen updates keep it.
@@ -54,22 +58,34 @@ Start **TextGen H3 Director**. Inkling loads by itself (watch the status line at
 
 ### Fitting on the GPU next to Fooocus
 
-The 5080 has 16 GB of VRAM. Fooocus (SDXL) needs a good part of it, and the Inkling Q4_K_M file alone is
-about 16 GB, so Inkling cannot sit on the GPU whole. It doesn't need to: Inkling is a mixture-of-experts
-model, and only 8 of its 128 experts run per token. The **Model and GPU** panel at the top of the tab has
-two profiles:
+Your memory: **16 GB VRAM** (RTX 5080) + **16 GB RAM**, shared with Bazzite, Fooocus and TextGen.
+Fooocus (SDXL) needs roughly 8 GB of the VRAM while it generates. The setup is made for that:
+
+- **Model size:** the installer takes a ~10–11 GB Inkling file instead of the 16 GB Q4_K_M, which would not
+  fit in 16 GB of RAM next to Fooocus. Inkling is a mixture-of-experts model (26 B parameters, about 3.4 B
+  active per token), so it stays usable at ~3 bits. It is somewhat less precise than Q4_K_M, and the
+  format check repairs most structural slips. With 32 GB RAM later, run the installer again with
+  `--quant Q4_K_M`.
+- **VRAM budget:** with the default *Fit next to Fooocus* profile, Inkling (model + vision file + context)
+  uses at most the budget (default **6.5 GB**). When you press *Load Inkling* (or at start-up), the tab
+  measures the GPU's free memory and tells llama.cpp how much to leave free. The budget therefore holds
+  whether Fooocus is already running or starts later. llama.cpp keeps the attention layers on the GPU and
+  moves MoE expert weights to system RAM first. About 5 GB of the model sits in VRAM and the remaining
+  ~5 GB in RAM.
+- **Context:** 10k tokens instead of 16k. An H3 request with a picture and a repair pass needs about 7k.
 
 | GPU profile | What it does |
 |---|---|
-| **Small VRAM** (default) | Every layer on the GPU except the MoE experts, which stay in system RAM (`--cpu-moe`). Takes little VRAM and stays quick. Use it while Fooocus is open. |
-| **Full GPU** | llama.cpp fits as much of Inkling into VRAM as it can (1 GB left free). Fastest, for when nothing else uses the GPU. |
+| **Fit next to Fooocus** (default) | Inkling stays within the VRAM budget (slider in the panel); the rest of the model goes to system RAM. |
+| **Whole GPU** | Fits as much of Inkling into VRAM as possible (1 GB left free). The ~10 GB file fits entirely, so this is the fastest. Use it when Fooocus is closed. |
 
-- The status line shows the GPU's memory in use and **how much of it Inkling takes**, so you can see
-  what is left for Fooocus.
-- **Load Inkling** and **Unload (free the GPU)** switch profiles in seconds without restarting TextGen.
-  Unload frees all of Inkling's VRAM (before a game, for example).
-- The small-VRAM profile keeps most of the model in system RAM: with Fooocus open as well, 32 GB of RAM is
-  the minimum and 64 GB is comfortable. With less, use a smaller quant (`--quant IQ4_XS`).
+- The status line shows the GPU's memory in use and **how much of it Inkling takes**.
+- **Load Inkling** / **Unload (free the GPU)** switch profiles or budgets in seconds without restarting TextGen.
+- If Fooocus runs out of memory, lower the budget (5–6 GB) and press *Load Inkling* again. If Fooocus is
+  closed most of the time, raise it or use *Whole GPU*: more VRAM = faster.
+- RAM is the tight part. Bazzite's compressed swap (zram) catches short peaks. If the system starts to
+  stutter while both run, close other big programs (browsers with many tabs, games), or install a smaller
+  file: `install.py --quant IQ2_M`.
 
 ## What's in this folder
 
@@ -86,8 +102,8 @@ two profiles:
 ## Manual setup (Windows, other Linux, Mac)
 
 You need a PC (Windows, Linux or Mac), not a phone. Inkling 2 Mini has 26 B parameters but only about
-3.4 B are active per token, so it runs on a CPU, faster with a GPU. Plan for **32 GB of RAM** (or RAM +
-VRAM) for a Q4_K_M file.
+3.4 B are active per token, so it runs on a CPU, faster with a GPU. A Q4_K_M file (~16 GB) wants **32 GB of
+RAM** (or RAM + VRAM); with 16 GB RAM pick a ~10 GB file (IQ3_XXS / Q2_K) instead.
 
 ### 1. Install TextGen
 
@@ -246,7 +262,8 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 | *The request needs about N tokens, but the model was loaded with a context of …* | Load the model with ctx-size 16384 or more |
 | *No model is loaded* | *Model and GPU* → *Load Inkling* (or switch the backend to a server URL) |
 | Installer: *llama.cpp does not see the GPU* (Bazzite) | You are on a non-NVIDIA Bazzite image or the driver isn't running: check `nvidia-smi`; RTX 50 cards need the `-nvidia-open` image |
-| Fooocus runs out of GPU memory | *Model and GPU* → *Small VRAM* → *Load Inkling* (or *Unload* while Fooocus works) |
+| Fooocus runs out of GPU memory | *Model and GPU* → lower the VRAM budget (e.g. 5) → *Load Inkling* (or *Unload* while Fooocus works) |
+| The PC stutters / swaps with both running | 16 GB RAM is tight: close other big programs, or reinstall with `--quant IQ2_M` |
 | *Could not reach http://…/chat/completions* | Start llama-server, check the URL and port |
 | ⚠️ *Finished, but the format check still finds problems* | Generate again, set Thinking to *low*, or fix by hand and press *Re-check* |
 | The tab is missing | Session tab → tick `h3_i2v_director` → apply and restart |

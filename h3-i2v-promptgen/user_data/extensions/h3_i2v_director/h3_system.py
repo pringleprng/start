@@ -30,15 +30,16 @@ def parse_gpus(out: str) -> list[dict]:
         parts = [p.strip() for p in line.split(",")]
         if len(parts) >= 4:
             try:
-                gpus.append({"name": parts[0], "used_mb": int(float(parts[1])), "total_mb": int(float(parts[2])),
-                             "driver": parts[3]})
+                used, total = int(float(parts[1])), int(float(parts[2]))
             except ValueError:
                 continue
+            gpus.append({"name": parts[0], "used_mb": used, "total_mb": total, "free_mb": total - used,
+                         "driver": parts[3]})
     return gpus
 
 
 def gpu_info() -> list[dict]:
-    """NVIDIA GPUs from nvidia-smi: [{name, used_mb, total_mb, driver}] (empty if unavailable)."""
+    """NVIDIA GPUs from nvidia-smi: [{name, used_mb, total_mb, free_mb, driver}] (empty if unavailable)."""
     return parse_gpus(_nvidia_smi(["--query-gpu=name,memory.used,memory.total,driver_version"]))
 
 
@@ -74,10 +75,12 @@ def gpu_summary(gpus: list[dict] | None = None, model_vram_mb: int | None = None
 # --------------------------------------------------------------------------------------
 
 PROFILES = {
-    "small": "Small VRAM: runs next to Fooocus (MoE experts in system RAM)",
-    "full": "Full GPU: fastest, when nothing else uses the GPU",
+    "fit": "Fit next to Fooocus: Inkling stays within the VRAM budget below, the rest goes to system RAM",
+    "full": "Whole GPU: fastest, when Fooocus is closed",
 }
-DEFAULT_PROFILE = "small"
+DEFAULT_PROFILE = "fit"
+VISION_OVERHEAD_MB = 512   # image-encoder work buffers on top of the mmproj weights
+DESKTOP_MARGIN_MB = 1024   # what the "whole GPU" profile leaves free
 
 
 def pick_inkling(models: list[str], mmprojs: list[str]) -> tuple[str, str]:
@@ -97,23 +100,31 @@ def pick_inkling(models: list[str], mmprojs: list[str]) -> tuple[str, str]:
 
 
 def resolve_profile(profile: str) -> str:
-    return "full" if profile == "full" else "small"
+    return "full" if profile == "full" else "fit"
 
 
-def load_args(profile: str, mmproj: str, ctx_size: int = 16384, vram_margin_mb: int = 1024) -> dict:
-    """TextGen llama.cpp loader settings for a profile ("small" or "full")."""
-    args = {
+def fit_margin_mb(profile: str, budget_gb: float, mmproj_mb: int, gpus: list[dict]) -> int:
+    """llama.cpp --fit-target (VRAM to leave free) for a profile.
+
+    "fit": Inkling (model + context + vision file) should use about budget_gb of VRAM, whatever
+    else is running. llama.cpp only counts the model and context, so the vision file is taken
+    off the budget, and the margin is the GPU's free memory minus what is left.
+    """
+    if resolve_profile(profile) == "full" or not gpus:
+        return DESKTOP_MARGIN_MB
+    model_budget = int(budget_gb * 1024) - int(mmproj_mb) - VISION_OVERHEAD_MB
+    return max(DESKTOP_MARGIN_MB // 2, gpus[0]["free_mb"] - max(model_budget, 512))
+
+
+def load_args(mmproj: str, ctx_size: int, margin_mb: int) -> dict:
+    """TextGen llama.cpp loader settings: let llama.cpp place layers and MoE experts so that
+    margin_mb of VRAM stays free (it moves expert weights to system RAM first)."""
+    return {
         "loader": "llama.cpp",
         "ctx_size": int(ctx_size),
         "cache_type": "q8_0",
         "mmproj": mmproj or None,
         "cpu_moe": False,
+        "gpu_layers": -1,
+        "fit_target": str(int(margin_mb)),
     }
-    if resolve_profile(profile) == "small":
-        # every layer on the GPU except the MoE experts, which stay in system RAM:
-        # little VRAM, still quick because only 8 of 128 experts run per token
-        args.update(gpu_layers=999, cpu_moe=True)
-    else:
-        # let llama.cpp fit as much as possible into VRAM, leaving a margin for the desktop
-        args.update(gpu_layers=-1, fit_target=str(int(vram_margin_mb)))
-    return args

@@ -6,7 +6,8 @@ RTX 5080). Everything goes into one folder in your home directory; nothing is
 installed system-wide, so it suits Bazzite's read-only system.
 
     python3 install.py                       # everything, into ~/AI/textgen
-    python3 install.py --dir ~/AI/textgen --quant Q5_K_M
+    python3 install.py --vram-budget 7        # give Inkling more VRAM next to Fooocus
+    python3 install.py --quant Q4_K_M          # a specific quant instead of the automatic choice
     python3 install.py --skip-model          # update the programs, keep the model
 
 What it does:
@@ -14,9 +15,10 @@ What it does:
   2. TextGen portable (CUDA build) from github.com/oobabooga/textgen
   3. llama.cpp (CUDA 12.x build + its CUDA runtime) from github.com/ggml-org/llama.cpp,
      new enough for Inkling 2, placed where the H3 tab makes TextGen use it
-  4. Inkling 2 Mini Uncensored GGUF + its mmproj (vision) from Hugging Face
+  4. Inkling 2 Mini Uncensored GGUF + its mmproj (vision) from Hugging Face; the quant is chosen
+     by size so that it fits your RAM + VRAM next to Fooocus (about 10-11 GB with 16 GB RAM)
   5. the H3 I2V Director tab, Chat template and preset
-  6. settings (auto-load with the small-VRAM profile, so it fits next to Fooocus or other GPU apps),
+  6. settings (auto-load within a VRAM budget, so it fits on the GPU next to Fooocus),
      CMD_FLAGS.txt, a start script and an app-menu entry
 
 Run it again any time: finished downloads are skipped, broken ones resumed.
@@ -50,6 +52,10 @@ MIN_LLAMA_BUILD = 12638          # first release (22 Nov 2026) with complete Ink
 MIN_DRIVER_BLACKWELL = 570       # RTX 50-series / CUDA 12.8
 MIN_DRIVER_CUDA13 = 580
 DEFAULT_REPO = "Abiray/Inkling-2-Mini-Uncensored-GGUF"
+# other uncensored GGUF uploads, searched in this order when --quant auto needs a size the first lacks
+FALLBACK_REPOS = ["AtomicChat/Inkling-2-Mini-Uncensored-GGUF", "KookiesXy/Inkling-2-Mini-Uncensored-GGUF",
+                  "ghost-actual/Inkling-2-Mini-Uncensored-GGUF"]
+Q4_K_M_GB = 16.5           # never pick more than about a Q4_K_M automatically (speed)
 H3_SOURCE_REPO = "pringleprng/start"
 H3_SOURCE_BRANCH = "ccr-df6920e9-t3vfcw"
 H3_FILES = [
@@ -166,7 +172,7 @@ def download(url: str, dest: Path, size: int | None = None) -> Path:
 
 def check_gpu() -> dict:
     step("Checking the NVIDIA GPU")
-    info = {"name": "", "driver": "", "driver_major": 0, "compute_cap": ""}
+    info = {"name": "", "driver": "", "driver_major": 0, "compute_cap": "", "vram_gb": 0.0}
     exe = shutil.which("nvidia-smi")
     if not exe:
         warn("nvidia-smi not found: no NVIDIA driver. On Bazzite, switch to the NVIDIA image "
@@ -188,6 +194,9 @@ def check_gpu() -> dict:
         except ValueError:
             pass
         say(f"  ✓ {parts[0]} · driver {parts[1]} · compute {parts[2]}" + (f" · {parts[3]}" if len(parts) > 3 else ""))
+        if len(parts) > 3:
+            m = re.match(r"(\d+)", parts[3])
+            info["vram_gb"] = int(m.group(1)) / 1024 if m else 0.0
     if info["compute_cap"].startswith("12") and 0 < info["driver_major"] < MIN_DRIVER_BLACKWELL:
         raise InstallError(f"RTX 50-series cards need NVIDIA driver {MIN_DRIVER_BLACKWELL} or newer "
                            f"(you have {info['driver']}). Update Bazzite (`ujust update`) and reboot.")
@@ -202,16 +211,25 @@ def check_space(base: Path, need_gb: float) -> None:
     say(f"  ✓ {free:.0f} GB free in {base}")
 
 
-def check_ram() -> None:
+def check_ram() -> float:
     try:
         meminfo = Path("/proc/meminfo").read_text()
         total_gb = int(re.search(r"MemTotal:\s+(\d+)", meminfo).group(1)) / 1024 / 1024
     except (OSError, AttributeError):
-        return
+        return 0.0
     say(f"  ✓ {total_gb:.0f} GB RAM")
-    if total_gb < 30:
-        warn("Less than 32 GB RAM: the small-VRAM profile keeps most of the model in RAM, so use a smaller "
-             "quant (--quant IQ4_XS or Q3_K_M).")
+    return total_gb
+
+
+def auto_size_limit_gb(ram_gb: float) -> float:
+    """Largest model file that still fits when Fooocus runs too.
+
+    With the "fit" profile about 5 GB of the model sits in VRAM (6.5 GB budget minus vision file and
+    context); the rest needs free system RAM, after roughly 10 GB for the desktop, Fooocus and TextGen.
+    """
+    if ram_gb <= 0:
+        return 11.0
+    return max(6.0, min(Q4_K_M_GB, ram_gb - 5.0))
 
 
 # --------------------------------------------------------------------------------------
@@ -339,32 +357,119 @@ def choose_model_files(files: list[str], quant: str) -> tuple[list[str], str]:
     best = max(models, key=key)
     m = re.match(r"(.*)-\d{5}-of-(\d{5})\.gguf$", best)
     parts = sorted(f for f in models if m and f.startswith(m.group(1) + "-")) if m else [best]
+    return parts, choose_mmproj(files)
+
+
+def choose_mmproj(files: list[str]) -> str:
+    """The vision projector: BF16 > F16 > F32 > Q8."""
+    projs = [f for f in files if f.lower().endswith(".gguf") and "mmproj" in Path(f).name.lower()]
 
     def proj_key(f):
         n = Path(f).name.lower()
         rank = next((i for i, p in enumerate(PROJ_PREFERENCE) if p in n), len(PROJ_PREFERENCE))
         return (-rank, n)
-    mmproj = max(projs, key=proj_key) if projs else ""
-    return parts, mmproj
+    return max(projs, key=proj_key) if projs else ""
 
 
-def install_model(user_data: Path, repo: str, quant: str) -> tuple[str, str]:
-    step(f"Inkling 2 Mini Uncensored from huggingface.co/{repo}")
+def _gguf_groups(files: list[str], sizes: dict) -> dict:
+    """Model GGUFs (no mmproj) grouped by name, with split parts together: {first part: (parts, total size)}."""
+    groups: dict[str, list[str]] = {}
+    for f in files:
+        name = Path(f).name.lower()
+        if not name.endswith(".gguf") or "mmproj" in name:
+            continue
+        m = re.match(r"(.*)-\d{5}-of-\d{5}\.gguf$", f)
+        groups.setdefault(m.group(1) if m else f, []).append(f)
+    out = {}
+    for parts in groups.values():
+        parts.sort()
+        if all(sizes.get(p) for p in parts):
+            out[parts[0]] = (parts, sum(sizes[p] for p in parts))
+    return out
+
+
+def choose_by_size(files: list[str], sizes: dict, limit_bytes: int) -> tuple[list[str], int]:
+    """The biggest model file (or split set) that is not bigger than limit_bytes."""
+    fitting = [(total, parts) for parts, total in _gguf_groups(files, sizes).values() if total <= limit_bytes]
+    if not fitting:
+        return [], 0
+    total, parts = max(fitting, key=lambda t: (t[0], not Path(t[1][0]).name.lower().startswith("ud-")))
+    return parts, total
+
+
+def _repo_files(repo: str) -> tuple[list[str], dict]:
     info = get_json(f"{HF}/api/models/{repo}?blobs=true")
     siblings = info.get("siblings", [])
-    files = [s["rfilename"] for s in siblings]
-    sizes = {s["rfilename"]: s.get("size") or (s.get("lfs") or {}).get("size") for s in siblings}
-    parts, mmproj = choose_model_files(files, quant)
+    return ([s["rfilename"] for s in siblings],
+            {s["rfilename"]: s.get("size") or (s.get("lfs") or {}).get("size") for s in siblings})
+
+
+def _quant_names(files: list[str]) -> str:
+    names = {m.group(1) for f in files
+             for m in [re.search(r"[-_.]((?:UD-)?I?Q\d\w*?|BF16|F16)(?:-\d{5}-of-\d{5})?\.gguf$", f, re.I)] if m}
+    return ", ".join(sorted(names)) or "none"
+
+
+def install_model(user_data: Path, repo: str, quant: str, ram_gb: float, search_fallbacks: bool) -> tuple[str, str]:
+    repos = [repo] + ([r for r in FALLBACK_REPOS if r != repo] if search_fallbacks else [])
+    if quant.lower() == "auto":
+        limit_gb = auto_size_limit_gb(ram_gb)
+        step(f"Inkling 2 Mini Uncensored: biggest file up to {limit_gb:.1f} GB (fits {ram_gb:.0f} GB RAM + the GPU)")
+    else:
+        step(f"Inkling 2 Mini Uncensored {quant}")
+    listings: dict[str, tuple[list[str], dict]] = {}
+    chosen_repo, parts, best_total = "", [], 0
+    for r in repos:
+        try:
+            listings[r] = _repo_files(r)
+        except InstallError as exc:
+            warn(f"skipping {r}: {exc}")
+            continue
+        files, sizes = listings[r]
+        if quant.lower() == "auto":
+            cand, total = choose_by_size(files, sizes, int(limit_gb * 1e9))
+            if cand and total > best_total:
+                chosen_repo, parts, best_total = r, cand, total
+            if best_total >= 0.85 * limit_gb * 1e9:
+                break  # good enough; don't query more repositories
+        else:
+            cand, _ = choose_model_files(files, quant)
+            if cand:
+                chosen_repo, parts = r, cand
+                break
     if not parts:
-        quants = sorted({m.group(1) for f in files for m in [re.search(r"[-_.]((?:UD-)?I?Q\d[\w]*?|BF16|F16)\.gguf$", f, re.I)] if m})
-        raise InstallError(f"no {quant} file in {repo}. Available: {', '.join(quants) or 'none'} (use --quant)")
+        available = "; ".join(f"{r}: {_quant_names(f)}" for r, (f, _) in listings.items())
+        if quant.lower() == "auto":
+            raise InstallError(f"no Inkling file of {limit_gb:.1f} GB or less found ({available}). "
+                               "Pick one with --quant.")
+        raise InstallError(f"no {quant} file found ({available}). Use --quant with one of those.")
+    files, sizes = listings[chosen_repo]
+    total_gb = sum(sizes.get(f) or 0 for f in parts) / 1e9
+    say(f"  ✓ {Path(parts[0]).name} ({total_gb:.1f} GB) from {chosen_repo}")
+
+    # the vision file: from the same upload if it has one, else from another upload of the same model
+    mmproj, mmproj_repo = "", ""
+    for r in [chosen_repo] + [x for x in repos if x != chosen_repo]:
+        if r not in listings:
+            try:
+                listings[r] = _repo_files(r)
+            except InstallError:
+                continue
+        proj = choose_mmproj(listings[r][0])
+        if proj:
+            mmproj, mmproj_repo = proj, r
+            break
     if not mmproj:
-        warn(f"{repo} has no mmproj file: the model will work without vision")
+        warn("no mmproj (vision) file found: the model will work without seeing pictures")
+
     for f in parts:
-        download(f"{HF}/{repo}/resolve/main/{f}?download=true", user_data / "models" / Path(f).name, sizes.get(f))
+        download(f"{HF}/{chosen_repo}/resolve/main/{f}?download=true", user_data / "models" / Path(f).name, sizes.get(f))
     if mmproj:
-        download(f"{HF}/{repo}/resolve/main/{mmproj}?download=true", user_data / "mmproj" / Path(mmproj).name,
-                 sizes.get(mmproj))
+        download(f"{HF}/{mmproj_repo}/resolve/main/{mmproj}?download=true", user_data / "mmproj" / Path(mmproj).name,
+                 listings[mmproj_repo][1].get(mmproj))
+    others = [p for p in (user_data / "models").glob("*nkling*.gguf") if p.name not in {Path(f).name for f in parts}]
+    if others:
+        say("  i other Inkling files you can delete to free disk space: " + ", ".join(p.name for p in others))
     return Path(parts[0]).name, Path(mmproj).name if mmproj else ""
 
 
@@ -420,19 +525,21 @@ def update_cmd_flags(user_data: Path) -> None:
     say(f"  ✓ {path} enables the H3 tab")
 
 
-def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str) -> None:
+def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str, budget: float) -> None:
     path = user_data / "extensions" / EXTENSION / "settings.json"
     try:
         settings = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         settings = {}
-    settings.update(llama_server_path=str(server), gpu_profile=profile, autoload=True, ctx_size=16384)
+    settings.update(llama_server_path=str(server), gpu_profile=profile, vram_budget_gb=budget, autoload=True,
+                    ctx_size=10240)
     if model:
         settings["model_file"] = model
     if mmproj:
         settings["mmproj_file"] = mmproj
     path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-    say(f"  ✓ {path}: auto-load {model or '(model chosen in the tab)'}, GPU profile '{profile}'")
+    how = f"VRAM budget {budget:g} GB" if profile == "fit" else "whole GPU"
+    say(f"  ✓ {path}: auto-load {model or '(model chosen in the tab)'}, {how}")
 
 
 def write_launchers(base: Path, desktop: bool) -> Path:
@@ -470,9 +577,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--dir", default=str(Path.home() / "AI" / "textgen"), help="install folder (default ~/AI/textgen)")
     ap.add_argument("--repo", default=DEFAULT_REPO, help=f"Hugging Face GGUF repo (default {DEFAULT_REPO})")
-    ap.add_argument("--quant", default="Q4_K_M", help="quant to download (default Q4_K_M)")
-    ap.add_argument("--profile", choices=("small", "full"), default="small",
-                    help="GPU profile: small = little VRAM, runs next to Fooocus (default); full = fastest")
+    ap.add_argument("--quant", default="auto",
+                    help="quant to download, e.g. Q4_K_M; default auto = the biggest file that fits your RAM")
+    ap.add_argument("--profile", choices=("fit", "full"), default="fit",
+                    help="GPU profile: fit = stay within --vram-budget, next to Fooocus (default); full = whole GPU")
+    ap.add_argument("--vram-budget", type=float, default=6.5,
+                    help="GB of VRAM Inkling may use with --profile fit (default 6.5, for a 16 GB card + Fooocus)")
     ap.add_argument("--textgen-tag", default="latest")
     ap.add_argument("--llama-tag", default="latest")
     ap.add_argument("--skip-model", action="store_true", help="don't download the model")
@@ -490,16 +600,16 @@ def main(argv=None) -> int:
         gpu = check_gpu()
         step("Checking disk and memory")
         check_space(base, 6 if args.skip_model else 24)
-        check_ram()
+        ram_gb = check_ram()
         install_textgen(base, downloads, gpu, args.textgen_tag)
         user_data = base / "user_data"
         server = install_llama(user_data, downloads, gpu, args.llama_tag)
         model = mmproj = ""
         if not args.skip_model:
-            model, mmproj = install_model(user_data, args.repo, args.quant)
+            model, mmproj = install_model(user_data, args.repo, args.quant, ram_gb, args.repo == DEFAULT_REPO)
         install_h3_files(user_data, args.source_repo, args.branch)
         update_cmd_flags(user_data)
-        write_settings(user_data, server, model, mmproj, args.profile)
+        write_settings(user_data, server, model, mmproj, args.profile, args.vram_budget)
         script = write_launchers(base, not args.no_desktop)
     except InstallError as exc:
         say(f"\n✗ {exc}")
@@ -510,7 +620,8 @@ def main(argv=None) -> int:
 
     step("Done")
     say(f"Start 'TextGen H3 Director' from the app menu, or run {script}")
-    say(f"Inkling loads by itself ({args.profile} GPU profile); open the 'H3 I2V Director' tab.")
+    how = f"within {args.vram_budget:g} GB of VRAM" if args.profile == "fit" else "on the whole GPU"
+    say(f"Inkling loads by itself ({how}); open the 'H3 I2V Director' tab.")
     say(f"Downloaded archives are in {downloads}; delete them to free space.")
     return 0
 

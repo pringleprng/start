@@ -3,7 +3,7 @@ MiniMax H3 (Hailuo 3) image-to-video prompt in the official H3 format.
 
 The picture goes to the loaded vision model (Inkling 2 Mini with its mmproj), which
 writes the prompt; the tab then repairs and checks the structure (h3_core.py).
-It can also load Inkling itself with a small-VRAM profile that leaves room for other GPU
+It can also load Inkling itself within a VRAM budget, so it fits on the GPU next to other
 apps such as Fooocus (h3_system.py).
 
 Enable with --extensions h3_i2v_director (or in the Session tab).
@@ -61,14 +61,14 @@ params = {
     "llama_server_path": "",            # optional newer llama-server for TextGen's llama.cpp loader
     "model_file": "",                   # Inkling GGUF in user_data/models (empty = auto-detect)
     "mmproj_file": "",                  # its vision projector in user_data/mmproj (empty = auto-detect)
-    "gpu_profile": "small",             # small / full (see h3_system.PROFILES)
-    "ctx_size": 16384,
-    "vram_margin_mb": 1024,             # VRAM left free in the "full" profile
+    "gpu_profile": "fit",               # fit / full (see h3_system.PROFILES)
+    "vram_budget_gb": 6.5,              # VRAM Inkling may use in the "fit" profile (model + vision + context)
+    "ctx_size": 10240,                  # an H3 request with a picture and a repair pass needs about 7k tokens
     "autoload": False,                  # load Inkling when TextGen starts
 }
 SAVED_KEYS = ("backend", "api_url", "api_key", "api_model", "thinking", "temperature", "top_p", "min_p",
               "max_tokens", "auto_repair", "save_prompts", "max_image_side", "llama_server_path", "model_file",
-              "mmproj_file", "gpu_profile", "ctx_size", "vram_margin_mb", "autoload")
+              "mmproj_file", "gpu_profile", "vram_budget_gb", "ctx_size", "autoload")
 PROFILE_BY_LABEL = {v: k for k, v in sysinfo.PROFILES.items()}
 
 BACKENDS = {"TextGen (loaded model)": "textgen", "OpenAI-compatible server (URL)": "openai"}
@@ -77,6 +77,7 @@ MODE_BY_LABEL = {v: k for k, v in core.MODE_LABELS.items()}
 
 _stop = threading.Event()
 _override = {"path": None}
+_loaded = {"profile": ""}   # how the current model was loaded by this tab
 
 
 class H3Error(Exception):
@@ -191,20 +192,33 @@ def _chosen_files(model_file="", mmproj_file=""):
     return model, mmproj
 
 
-def load_inkling(model_file="", mmproj_file="", profile_key=None):
+def _mmproj_mb(name):
+    for folder in (Path(shared.user_data_dir) / "mmproj", Path(shared.args.model_dir)):
+        path = folder / name
+        if name and path.is_file():
+            return path.stat().st_size // (1024 * 1024)
+    return 0
+
+
+def load_inkling(model_file="", mmproj_file="", profile_key=None, budget_gb=None):
     """Load the model with a GPU profile. Returns a status line (Markdown)."""
     from modules.api.models import _load_model
+    from modules.models import unload_model
 
     model, mmproj = _chosen_files(model_file, mmproj_file)
     if not model:
         return ("❌ No Inkling 2 GGUF found in `user_data/models/`. Download the model (and its mmproj) first, "
                 "or pick the file in the list.")
     profile = sysinfo.resolve_profile(profile_key or params["gpu_profile"])
-    args = sysinfo.load_args(profile, mmproj, params["ctx_size"], params["vram_margin_mb"])
+    budget = float(budget_gb if budget_gb is not None else params["vram_budget_gb"])
+    unload_model()  # measure free VRAM without the previous copy of the model
+    margin = sysinfo.fit_margin_mb(profile, budget, _mmproj_mb(mmproj), sysinfo.gpu_info())
+    args = sysinfo.load_args(mmproj, params["ctx_size"], margin)
     if not _load_lock.acquire(blocking=False):
         return "⏳ A model is already being loaded."
     try:
-        logger.info(f"H3 I2V Director: loading {model} (mmproj {mmproj or 'none'}, profile {profile})")
+        logger.info(f"H3 I2V Director: loading {model} (mmproj {mmproj or 'none'}, profile {profile}, "
+                    f"leaving {margin} MiB of VRAM free)")
         _load_model({"model_name": model, "args": args})
     except Exception as exc:
         logger.exception("H3 I2V Director: model load failed")
@@ -217,7 +231,9 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None):
         _load_lock.release()
     if shared.model is None:
         return "❌ Loading failed; see the TextGen console."
-    where = "small VRAM, MoE experts in system RAM" if profile == "small" else "as much as fits on the GPU"
+    where = (f"VRAM budget {budget:g} GB, the rest in system RAM" if profile == "fit"
+             else "as much as fits on the GPU")
+    _loaded.update(profile=where, model=model)
     return f"✅ Loaded `{model}` with {'`' + mmproj + '`' if mmproj else 'no mmproj (no vision)'} · {where}."
 
 
@@ -290,7 +306,7 @@ def model_status():
         return f"Backend: TextGen · **no model loaded** (use *Load Inkling* below)  \n{gpu}"
     vision = "vision on" if getattr(shared, "is_multimodal", False) else "**no vision** (load it with its mmproj file)"
     fmt = "Inkling native format" if core.is_inkling(name, shared.settings.get("instruction_template_str", "")) else "model's chat template"
-    moe = " · small-VRAM profile (experts in RAM)" if getattr(shared.args, "cpu_moe", False) else " · full-GPU profile"
+    moe = f" · {_loaded['profile']}" if _loaded["profile"] and name == _loaded.get("model") else ""
     return f"Backend: TextGen · `{name}` · {vision} · {fmt}{moe}  \n{gpu}"
 
 
@@ -635,13 +651,15 @@ def stop():
 
 
 def save_settings(backend_label, api_url, api_key, api_model, thinking, temperature, top_p, min_p, max_tokens,
-                  auto_repair, save_prompts, llama_server_path, model_file, mmproj_file, profile_label, autoload):
+                  auto_repair, save_prompts, llama_server_path, model_file, mmproj_file, profile_label, budget,
+                  autoload):
     _cfg(backend_label, api_url, api_key, api_model, thinking, temperature, top_p, min_p, max_tokens, auto_repair,
          save_prompts)
     params["llama_server_path"] = (llama_server_path or "").strip()
     params["model_file"] = model_file or ""
     params["mmproj_file"] = mmproj_file or ""
     params["gpu_profile"] = PROFILE_BY_LABEL.get(profile_label, sysinfo.DEFAULT_PROFILE)
+    params["vram_budget_gb"] = float(budget)
     params["autoload"] = bool(autoload)
     SETTINGS_FILE.write_text(json.dumps({k: params[k] for k in SAVED_KEYS}, indent=2), encoding="utf-8")
     msg = f"Saved to `{SETTINGS_FILE}`."
@@ -675,6 +693,9 @@ def ui():
         gpu_profile = gr.Radio(list(sysinfo.PROFILES.values()),
                                value=sysinfo.PROFILES[sysinfo.resolve_profile(params["gpu_profile"])],
                                label="GPU profile")
+        vram_budget = gr.Slider(2, 15, value=params["vram_budget_gb"], step=0.5,
+                                label="VRAM budget for Inkling in GB (Fit profile; model + vision + context)",
+                                info="16 GB card with Fooocus open: about 6.5. Watch 'Inkling uses' in the status line.")
         with gr.Row():
             load_btn = gr.Button("Load Inkling", variant="primary")
             unload_btn = gr.Button("Unload (free the GPU)")
@@ -780,19 +801,20 @@ def ui():
     stop_btn.click(stop, None, None, queue=False)
     recheck_btn.click(recheck, [prompt, mode, duration, shots, dialogue, music, silent], [prompt, report])
     save_btn.click(save_settings, settings_inputs + [llama_server_path, model_file, mmproj_file, gpu_profile,
-                                                     autoload], save_status)
+                                                     vram_budget, autoload], save_status)
 
-    def _load(model, mmproj, profile_label):
+    def _load(model, mmproj, profile_label, budget):
         params["gpu_profile"] = PROFILE_BY_LABEL.get(profile_label, sysinfo.DEFAULT_PROFILE)
-        return load_inkling(model or "", mmproj or "", params["gpu_profile"])
+        params["vram_budget_gb"] = float(budget)
+        return load_inkling(model or "", mmproj or "", params["gpu_profile"], params["vram_budget_gb"])
 
     def _refresh_files():
         models, mmprojs = _available_files()
         model, mmproj = _chosen_files()
         return gr.update(choices=models, value=model or None), gr.update(choices=mmprojs, value=mmproj or None)
 
-    load_btn.click(lambda: "⏳ Loading… (a 16 GB model takes a little while)", None, load_status, queue=False).then(
-        _load, [model_file, mmproj_file, gpu_profile], load_status).then(model_status, None, status_model, queue=False)
+    load_btn.click(lambda: "⏳ Loading… (a 10 GB model takes a little while)", None, load_status, queue=False).then(
+        _load, [model_file, mmproj_file, gpu_profile, vram_budget], load_status).then(model_status, None, status_model, queue=False)
     unload_btn.click(unload_inkling, None, load_status).then(model_status, None, status_model, queue=False)
     refresh_files_btn.click(_refresh_files, None, [model_file, mmproj_file]).then(
         model_status, None, status_model, queue=False)
