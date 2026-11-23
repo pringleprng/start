@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# saved per install, may contain an API key
+user_data/extensions/h3_i2v_director/settings.json
