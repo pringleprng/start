@@ -137,6 +137,113 @@ class Zip(unittest.TestCase):
         self.assertFalse((d / "escape.txt").exists())
 
 
+class Download(unittest.TestCase):
+    """A connection that drops mid-file must resume (Range request), not crash the installer."""
+
+    def test_resumes_after_cut_off_reads(self):
+        import http.server
+        import threading
+
+        data = bytes(range(256)) * 4096  # 1 MiB
+        state = {"calls": 0, "ranges": []}
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                state["calls"] += 1
+                rng = self.headers.get("Range")
+                state["ranges"].append(rng)
+                start = int(rng.split("=")[1].split("-")[0]) if rng else 0
+                body = data[start:]
+                self.send_response(206 if rng else 200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                if state["calls"] < 3:   # the first two answers stop early: http.client.IncompleteRead
+                    self.wfile.write(body[: len(body) // 3])
+                    self.wfile.flush()
+                    self.close_connection = True
+                    self.connection.shutdown(2)
+                    return
+                self.wfile.write(body)
+
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        old_sleep = inst.time.sleep
+        inst.time.sleep = lambda s: None
+        try:
+            dest = Path(tempfile.mkdtemp()) / "file.bin"
+            inst.download(f"http://127.0.0.1:{srv.server_address[1]}/f", dest, len(data))
+        finally:
+            inst.time.sleep = old_sleep
+            srv.shutdown()
+        self.assertEqual(dest.read_bytes(), data)
+        self.assertEqual(state["calls"], 3)
+        self.assertIsNone(state["ranges"][0])
+        self.assertTrue(all(r and r.startswith("bytes=") for r in state["ranges"][1:]))
+
+    def test_missing_file_is_a_clear_error(self):
+        import http.server
+        import threading
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                self.send_response(404)
+                self.end_headers()
+
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            with self.assertRaises(inst.InstallError):
+                inst.download(f"http://127.0.0.1:{srv.server_address[1]}/x", Path(tempfile.mkdtemp()) / "x", 10)
+        finally:
+            srv.shutdown()
+
+
+class DesktopEntry(unittest.TestCase):
+    def test_plain_path_unquoted(self):
+        self.assertEqual(inst.desktop_quote("/home/u/AI/textgen/start-h3-director.sh"),
+                         "/home/u/AI/textgen/start-h3-director.sh")
+
+    def test_spaces_and_specials_follow_the_spec(self):
+        self.assertEqual(inst.desktop_quote("/home/my user/s.sh"), '"/home/my user/s.sh"')
+        # quote rule: \" \$ ; string rule doubles the backslash; % becomes %%
+        self.assertEqual(inst.desktop_quote('/a"b/$x/100%/s.sh'), '"/a\\\\"b/\\\\$x/100%%/s.sh"')
+
+
+class Settings(unittest.TestCase):
+    def _ud(self):
+        ud = Path(tempfile.mkdtemp())
+        (ud / "extensions" / "h3_i2v_director").mkdir(parents=True)
+        return ud
+
+    def test_first_install_defaults(self):
+        s = inst.write_settings(self._ud(), Path("/x/llama-b12675/llama-server"), "M.gguf", "P.gguf", None, None)
+        self.assertEqual((s["gpu_profile"], s["vram_budget_gb"], s["autoload"], s["ctx_size"]), ("fit", 6.5, True, 12288))
+        self.assertEqual((s["model_file"], s["mmproj_file"]), ("M.gguf", "P.gguf"))
+
+    def test_rerun_keeps_choices_made_in_the_tab(self):
+        import json
+        ud = self._ud()
+        inst.write_settings(ud, Path("/x/old/llama-server"), "M.gguf", "P.gguf", None, None)
+        f = ud / "extensions" / "h3_i2v_director" / "settings.json"
+        f.write_text(json.dumps(dict(json.loads(f.read_text()), vram_budget_gb=5.0, autoload=False, gpu_profile="full")))
+        s = inst.write_settings(ud, Path("/x/new/llama-server"), "M.gguf", "", None, None)
+        self.assertEqual((s["gpu_profile"], s["vram_budget_gb"], s["autoload"]), ("full", 5.0, False))
+        self.assertEqual(s["llama_server_path"], "/x/new/llama-server")   # the new llama.cpp is always used
+        self.assertEqual(s["mmproj_file"], "P.gguf")                       # not cleared when skipped
+
+    def test_options_given_on_purpose_win(self):
+        ud = self._ud()
+        inst.write_settings(ud, Path("/x/llama-server"), "M.gguf", "P.gguf", "full", None)
+        s = inst.write_settings(ud, Path("/x/llama-server"), "M.gguf", "P.gguf", "fit", 7.0)
+        self.assertEqual((s["gpu_profile"], s["vram_budget_gb"]), ("fit", 7.0))
+
+
 class CmdFlags(unittest.TestCase):
     def _run(self, text):
         d = Path(tempfile.mkdtemp())

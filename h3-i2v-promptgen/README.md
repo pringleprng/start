@@ -20,7 +20,7 @@ format. The tab then checks and repairs the format, so the result is ready to pa
 ## Bazzite + RTX 5080: install with one script
 
 Needs Bazzite's **NVIDIA image** (the `-nvidia-open` variant, which RTX 50-series cards require), driver 570
-or newer (`nvidia-smi` shows it) and about **20 GB of free disk**. 16 GB of RAM works (see
+or newer (`nvidia-smi` shows it) and about **25 GB of free disk** (the installer checks for 24 GB). 16 GB of RAM works (see
 [Fitting on the GPU next to Fooocus](#fitting-on-the-gpu-next-to-fooocus)).
 Nothing is installed system-wide; everything goes into `~/AI/textgen`.
 
@@ -57,7 +57,8 @@ The script:
 6. creates **TextGen H3 Director** in the app menu and `~/AI/textgen/start-h3-director.sh`.
 
 `user_data` (models, settings, prompts) sits next to the TextGen folders, so TextGen updates keep it.
-Run the script again any time to update; finished downloads are skipped, interrupted ones resume.
+Run the script again any time to update; finished downloads are skipped, interrupted ones resume, and the
+GPU profile, VRAM budget and auto-load you set in the tab are kept (unless you pass `--profile` / `--vram-budget`).
 
 Start **TextGen H3 Director**. Inkling loads by itself (watch the status line at the top of the
 **H3 I2V Director** tab), then you're ready.
@@ -181,7 +182,7 @@ and press **Load Inkling**. Tick *Load automatically when TextGen starts* and pr
 this next time.
 
 (The normal Model tab works too: Model = the Inkling GGUF, Multimodal (vision) = the `mmproj-…` file,
-ctx-size 16384, Load.)
+ctx-size 12288, Load. It does not apply the VRAM budget, though; *Load Inkling* does.)
 
 The status line at the top should now show `vision on · Inkling native format`.
 
@@ -313,7 +314,8 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 | *The loaded model can't see pictures* / *loaded without its vision file* | Pick the `mmproj-…` file in *Model and GPU* and press *Load Inkling* again. If the vision file does not load, Inkling still loads without it and says so; until then you can describe the picture in *Picture notes* |
 | Installer: *no llama.cpp release b12653 or newer with a Linux CUDA 12 build found yet* | New builds appear every few hours; run the script again later |
 | Installer: *libgomp.so.1 … could not be added* | Run `rpm-ostree install libgomp`, reboot, run the script again |
-| *The request needs about N tokens, but the model was loaded with a context of …* | Load the model with ctx-size 16384 or more |
+| *The request needs about N tokens, but the model was loaded with a context of …* | Load it with *Load Inkling* in *Model and GPU* (12k context), or in the Model tab with ctx-size 12288 or more |
+| *Inkling is still loading* | Wait until the status line at the top of the tab shows the model (it updates every 10 s), then press Generate again |
 | *No model is loaded* | *Model and GPU* → *Load Inkling* (or switch the backend to a server URL) |
 | Installer: *llama.cpp does not see the GPU* (Bazzite) | You are on a non-NVIDIA Bazzite image or the driver isn't running: check `nvidia-smi`; RTX 50 cards need the `-nvidia-open` image |
 | Fooocus runs out of GPU memory | *Model and GPU* → lower the VRAM budget (e.g. 5) → *Load Inkling* (or *Unload* while Fooocus works) |

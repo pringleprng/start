@@ -124,7 +124,7 @@ def load_system_prompt() -> str:
 class Request:
     mode: str = "I2VA"
     idea: str = ""
-    duration: int = 8
+    duration: int = 5
     aspect_ratio: str = "adaptive"
     shots: str = "auto"          # "auto" or a number as text
     camera: str = "auto"         # "auto" or one of CAMERA_MOVES
@@ -144,7 +144,7 @@ class Request:
         try:
             self.duration = int(round(float(self.duration)))
         except (TypeError, ValueError):
-            self.duration = 8
+            self.duration = 5
         self.duration = max(MIN_SECONDS, min(MAX_SECONDS, self.duration))
         return self
 

@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import errno
+import http.client
 import io
 import json
 import os
@@ -42,6 +44,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import traceback
 import urllib.error
 import urllib.request
 import zipfile
@@ -60,6 +63,7 @@ DEFAULT_REPO = "Abiray/Inkling-2-Mini-Uncensored-GGUF"
 FALLBACK_REPOS = ["AtomicChat/Inkling-2-Mini-Uncensored-GGUF", "KookiesXy/Inkling-2-Mini-Uncensored-GGUF",
                   "ghost-actual/Inkling-2-Mini-Uncensored-GGUF"]
 Q4_K_M_GB = 16.5           # never pick more than about a Q4_K_M automatically (speed)
+DEFAULT_BUDGET_GB = 6.5    # VRAM for Inkling next to Fooocus on a 16 GB card
 H3_SOURCE_REPO = "pringleprng/start"
 H3_SOURCE_BRANCH = "ccr-df6920e9-t3vfcw"
 H3_FILES = [
@@ -129,51 +133,72 @@ def get_json(url: str):
 
 
 def download(url: str, dest: Path, size: int | None = None) -> Path:
-    """Download with resume. Skips files that are already complete."""
+    """Download with resume. Skips files that are already complete.
+
+    A dropped connection usually just ends the response early (no exception), so a short file
+    counts as an interruption too: the next try asks for the rest with a Range request. Tries that
+    make progress don't count against the limit, so a slow, flaky line still gets there."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and size and dest.stat().st_size == size:
         say(f"  ✓ {dest.name} (already downloaded)")
         return dest
     part = dest.with_name(dest.name + ".part")
-    for attempt in range(1, 6):
+    if size and part.exists() and part.stat().st_size > size:
+        part.unlink()
+    failures = tries = 0
+    while failures < 6 and tries < 100:
+        tries += 1
         have = part.stat().st_size if part.exists() else 0
+        if size and have == size:
+            part.replace(dest)
+            return dest
         headers = _headers(url)
         if have:
             headers["Range"] = f"bytes={have}-"
         req = urllib.request.Request(url, headers=headers)
+        reason, got = "", 0
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 if have and resp.status != 206:
                     have = 0  # server ignored the range: start over
-                total = size or (int(resp.headers.get("Content-Length", 0)) + have) or None
-                mode = "ab" if have else "wb"
+                length = int(resp.headers.get("Content-Length") or 0)
+                expected = size or (length + have if length else None)
                 done, last = have, 0.0
-                with open(part, mode) as out:
+                with open(part, "ab" if have else "wb") as out:
                     while True:
                         chunk = resp.read(1 << 20)
                         if not chunk:
                             break
                         out.write(chunk)
                         done += len(chunk)
+                        got += len(chunk)
                         if time.time() - last > 1.0:
                             last = time.time()
-                            pct = f"{done / total * 100:5.1f}%" if total else ""
+                            pct = f"{done / expected * 100:5.1f}%" if expected else ""
                             print(f"\r  ↓ {dest.name}: {done / 1e9:6.2f} GB {pct}", end="", flush=True)
             print()
-            if size and part.stat().st_size != size:
-                raise InstallError(f"{dest.name}: got {part.stat().st_size} bytes, expected {size}")
-            part.replace(dest)
-            return dest
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            now = part.stat().st_size
+            if expected is None or now == expected:
+                part.replace(dest)
+                return dest
+            if now > expected:
+                part.unlink()
+                raise InstallError(f"{dest.name}: got {now} bytes, expected {expected}; run the installer again")
+            reason = f"connection closed at {now / 1e9:.2f} of {expected / 1e9:.2f} GB"
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
             print()
             if isinstance(exc, urllib.error.HTTPError) and exc.code == 416 and size and have == size:
                 part.replace(dest)
                 return dest
             if isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403, 404):
                 raise InstallError(f"{url}: HTTP {exc.code}") from exc
-            warn(f"download interrupted ({exc}); retry {attempt}/5")
-            time.sleep(min(30, 2 ** attempt))
-    raise InstallError(f"could not download {url}")
+            if isinstance(exc, OSError) and exc.errno in (errno.ENOSPC, errno.EDQUOT, errno.EACCES, errno.EROFS):
+                raise InstallError(f"cannot write {part}: {exc.strerror}") from exc
+            reason = str(exc)
+        failures = 0 if got else failures + 1
+        warn(f"download interrupted ({reason}); resuming" + (f" (try {failures + 1} of 6)" if failures else ""))
+        time.sleep(min(30, 2 ** max(failures, 1)))
+    raise InstallError(f"could not download {url}; run the installer again to resume")
 
 
 # --------------------------------------------------------------------------------------
@@ -279,7 +304,8 @@ def install_textgen(base: Path, downloads: Path, gpu: dict, tag: str) -> Path:
         raise InstallError("no TextGen release with a Linux CUDA package found")
     version = rel["tag_name"].lstrip("v")
     target = base / f"textgen-{version}"
-    if (target / "textgen").exists():
+    done = target / ".h3-unpacked"
+    if done.exists() and (target / "textgen").exists():
         say(f"  ✓ TextGen {version} already installed")
     else:
         archive = download(asset["browser_download_url"], downloads / asset["name"], asset.get("size"))
@@ -291,6 +317,7 @@ def install_textgen(base: Path, downloads: Path, gpu: dict, tag: str) -> Path:
                 safe_extract(tar, base)
         if not (target / "textgen").exists():
             raise InstallError(f"{asset['name']} did not contain textgen-{version}/textgen")
+        done.write_text(asset["name"] + "\n", encoding="utf-8")
         say(f"  ✓ TextGen {version}")
     # One user_data next to the version folders: TextGen uses it when it exists, and it
     # survives TextGen updates (models, settings, extensions).
@@ -362,7 +389,8 @@ def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path
                            "new releases appear every few hours, try again later")
     folder = user_data / "llama-cpp" / f"llama-{name}"
     server = folder / "llama-server"
-    if server.exists() and (folder / "libcudart.so.12").exists():
+    done = folder / ".h3-unpacked"
+    if done.exists() and server.exists() and (folder / "libcudart.so.12").exists():
         say(f"  ✓ llama.cpp {name} already installed")
     else:
         main_tar = download(main["browser_download_url"], downloads / main["name"], main.get("size"))
@@ -378,19 +406,28 @@ def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path
             with tarfile.open(rt_tar) as tar:
                 safe_extract(tar, Path(tmp))
             for lib in Path(tmp).rglob("*.so*"):
+                if (folder / lib.name).exists() or (folder / lib.name).is_symlink():
+                    (folder / lib.name).unlink()
                 shutil.move(str(lib), folder / lib.name)
+        if not (folder / "libcudart.so.12").exists():
+            raise InstallError(f"{runtime['name']} did not contain libcudart.so.12")
         server.chmod(server.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        done.write_text(main["name"] + "\n", encoding="utf-8")
     ensure_openmp(folder, downloads)
-    devices = subprocess.run([str(server), "--list-devices"], capture_output=True, text=True, timeout=120,
-                             env={**os.environ, "LD_LIBRARY_PATH": str(folder)})
-    cuda_lines = [ln.strip() for ln in (devices.stdout + devices.stderr).splitlines() if re.match(r"\s*CUDA\d+:", ln)]
+    try:
+        devices = subprocess.run([str(server), "--list-devices"], capture_output=True, text=True, timeout=120,
+                                 env={**os.environ, "LD_LIBRARY_PATH": str(folder)})
+        listing = devices.stdout + devices.stderr
+    except (OSError, subprocess.SubprocessError) as exc:
+        listing = f"llama-server --list-devices failed: {exc}"
+    cuda_lines = [ln.strip() for ln in listing.splitlines() if re.match(r"\s*CUDA\d+:", ln)]
     if cuda_lines:
         for ln in cuda_lines:
             say(f"  ✓ llama.cpp sees {ln}")
     elif gpu["name"]:
         warn("llama.cpp does not see the GPU (no CUDA0 device). Check that the NVIDIA driver works "
              "(`nvidia-smi`), then run this installer again.")
-        warn((devices.stdout + devices.stderr).strip()[-600:])
+        warn(listing.strip()[-600:])
     return server
 
 
@@ -659,21 +696,39 @@ def update_cmd_flags(user_data: Path) -> None:
     say(f"  ✓ {path} enables the H3 tab")
 
 
-def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str, budget: float) -> None:
+def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str | None,
+                   budget: float | None) -> dict:
+    """Point the tab at the new llama-server and model. Choices made in the tab (profile, budget,
+    auto-load) are kept on a re-run unless --profile / --vram-budget are given."""
     path = user_data / "extensions" / EXTENSION / "settings.json"
     try:
         settings = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         settings = {}
-    settings.update(llama_server_path=str(server), gpu_profile=profile, vram_budget_gb=budget, autoload=True,
-                    ctx_size=12288)
+    settings["llama_server_path"] = str(server)
+    settings["gpu_profile"] = profile or settings.get("gpu_profile") or "fit"
+    settings["vram_budget_gb"] = budget if budget is not None else settings.get("vram_budget_gb", DEFAULT_BUDGET_GB)
+    settings.setdefault("autoload", True)
+    settings.setdefault("ctx_size", 12288)
     if model:
         settings["model_file"] = model
     if mmproj:
         settings["mmproj_file"] = mmproj
     path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-    how = f"VRAM budget {budget:g} GB" if profile == "fit" else "whole GPU"
-    say(f"  ✓ {path}: auto-load {model or '(model chosen in the tab)'}, {how}")
+    how = f"VRAM budget {settings['vram_budget_gb']:g} GB" if settings["gpu_profile"] == "fit" else "whole GPU"
+    load = f"auto-load {model or settings.get('model_file') or '(model chosen in the tab)'}" if settings["autoload"] \
+        else "auto-load off (as set in the tab)"
+    say(f"  ✓ {path}: {load}, {how}")
+    return settings
+
+
+def desktop_quote(arg: str) -> str:
+    """Quote one argument for the Exec= key of a .desktop file (freedesktop Desktop Entry spec)."""
+    if not re.search(r'[\s"\'\\><~|&;$*?#()`%]', arg):
+        return arg
+    inner = re.sub(r'(["`$\\])', r"\\\1", arg).replace("%", "%%")
+    # the .desktop format then unescapes backslashes once more when it reads the string value
+    return '"' + inner.replace("\\", "\\\\") + '"'
 
 
 def write_launchers(base: Path, desktop: bool) -> Path:
@@ -698,7 +753,7 @@ def write_launchers(base: Path, desktop: bool) -> Path:
         entry.write_text(
             "[Desktop Entry]\nType=Application\nName=TextGen H3 Director\n"
             "Comment=Inkling 2 Mini writes MiniMax H3 image-to-video prompts\n"
-            f"Exec={shlex.quote(str(script))}\n"
+            f"Exec={desktop_quote(str(script))}\n"
             f"Icon={icon if icon.exists() else 'applications-multimedia'}\n"
             "Terminal=false\nCategories=Graphics;AudioVideo;\n", encoding="utf-8")
         say(f"  ✓ app menu: 'TextGen H3 Director' ({entry})")
@@ -713,10 +768,11 @@ def main(argv=None) -> int:
     ap.add_argument("--repo", default=DEFAULT_REPO, help=f"Hugging Face GGUF repo (default {DEFAULT_REPO})")
     ap.add_argument("--quant", default="auto",
                     help="quant to download, e.g. Q4_K_M; default auto = the biggest file that fits your RAM")
-    ap.add_argument("--profile", choices=("fit", "full"), default="fit",
+    ap.add_argument("--profile", choices=("fit", "full"), default=None,
                     help="GPU profile: fit = stay within --vram-budget, next to Fooocus (default); full = whole GPU")
-    ap.add_argument("--vram-budget", type=float, default=6.5,
-                    help="GB of VRAM Inkling may use with --profile fit (default 6.5, for a 16 GB card + Fooocus)")
+    ap.add_argument("--vram-budget", type=float, default=None,
+                    help=f"GB of VRAM Inkling may use with --profile fit (default {DEFAULT_BUDGET_GB:g}, for a 16 GB "
+                         "card + Fooocus; a re-run keeps what you set in the tab)")
     ap.add_argument("--textgen-tag", default="latest")
     ap.add_argument("--llama-tag", default="latest")
     ap.add_argument("--skip-model", action="store_true", help="don't download the model")
@@ -743,7 +799,7 @@ def main(argv=None) -> int:
             model, mmproj = install_model(user_data, args.repo, args.quant, ram_gb, args.repo == DEFAULT_REPO)
         install_h3_files(user_data, args.source_repo, args.branch)
         update_cmd_flags(user_data)
-        write_settings(user_data, server, model, mmproj, args.profile, args.vram_budget)
+        settings = write_settings(user_data, server, model, mmproj, args.profile, args.vram_budget)
         script = write_launchers(base, not args.no_desktop)
     except InstallError as exc:
         say(f"\n✗ {exc}")
@@ -751,11 +807,20 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         say("\nStopped. Run the installer again to continue where it left off.")
         return 130
+    except Exception as exc:  # anything unexpected: show it plainly, keep the details for a bug report
+        traceback.print_exc()
+        say(f"\n✗ Unexpected error: {type(exc).__name__}: {exc}\n"
+            "Run the installer again; finished steps are skipped. If it happens again, the lines above "
+            "say where it failed.")
+        return 1
 
     step("Done")
     say(f"Start 'TextGen H3 Director' from the app menu, or run {script}")
-    how = f"within {args.vram_budget:g} GB of VRAM" if args.profile == "fit" else "on the whole GPU"
-    say(f"Inkling loads by itself ({how}); open the 'H3 I2V Director' tab.")
+    how = f"within {settings['vram_budget_gb']:g} GB of VRAM" if settings["gpu_profile"] == "fit" else "on the whole GPU"
+    if settings["autoload"]:
+        say(f"Inkling loads by itself ({how}); open the 'H3 I2V Director' tab.")
+    else:
+        say(f"Open the 'H3 I2V Director' tab and press Load Inkling ({how}).")
     say(f"Downloaded archives are in {downloads}; delete them to free space.")
     return 0
 

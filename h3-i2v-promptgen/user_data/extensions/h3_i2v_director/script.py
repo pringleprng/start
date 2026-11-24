@@ -248,13 +248,13 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None, budget_gb=None
                 "or pick the file in the list.")
     profile = sysinfo.resolve_profile(profile_key or params["gpu_profile"])
     budget = float(budget_gb if budget_gb is not None else params["vram_budget_gb"])
-    unload_model()  # measure free VRAM without the previous copy of the model
-    margin = sysinfo.fit_margin_mb(profile, budget, _mmproj_mb(mmproj), sysinfo.gpu_info())
-    args = sysinfo.load_args(mmproj, params["ctx_size"], margin)
     if not _load_lock.acquire(blocking=False):
-        return "⏳ A model is already being loaded."
+        return "⏳ Inkling is already being loaded; wait a moment (the status line above updates by itself)."
     vision_note = ""
     try:
+        unload_model()  # measure free VRAM without the previous copy of the model
+        margin = sysinfo.fit_margin_mb(profile, budget, _mmproj_mb(mmproj), sysinfo.gpu_info())
+        args = sysinfo.load_args(mmproj, params["ctx_size"], margin)
         logger.info(f"H3 I2V Director: loading {model} (mmproj {mmproj or 'none'}, profile {profile}, "
                     f"leaving {margin} MiB of VRAM free)")
         error = _try_load(model, args)
@@ -266,7 +266,7 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None, budget_gb=None
             if not _try_load(model, sysinfo.load_args("", params["ctx_size"], margin)):
                 vision_note = (f" ⚠️ The vision file `{mmproj}` did not load ({error}), so pictures cannot be read: "
                                "pick another mmproj file in the list (it must come from the same Inkling 2 Mini "
-                               "upload) and press Load.")
+                               "upload) and press *Load Inkling*.")
                 mmproj = ""
                 error = None
         if error:
@@ -387,6 +387,8 @@ def model_status():
     if params["backend"] == "openai":
         return f"Backend: server at `{_api_base(params['api_url'])}`  \n{gpu}"
     name = shared.model_name if shared.model_name not in (None, "None") and shared.model is not None else None
+    if not name and _load_lock.locked():
+        return f"Backend: TextGen · ⏳ **loading Inkling…** (this line updates by itself)  \n{gpu}"
     if not name:
         return f"Backend: TextGen · **no model loaded** (use *Load Inkling* below)  \n{gpu}"
     vision = "vision on" if getattr(shared, "is_multimodal", False) else "**no vision** (load it with its mmproj file)"
@@ -407,7 +409,7 @@ def _fit_max_tokens(used, wanted):
     room = ctx - used - 32
     if room < 400:
         raise H3Error(f"The request needs about {used} tokens, but the model was loaded with a context of {ctx}. "
-                      "Reload it in the Model tab with ctx-size 16384 or more.")
+                      "Load it with *Load Inkling* in *Model and GPU* (12k context), or shorten the idea.")
     return min(int(wanted), room)
 
 
@@ -420,6 +422,12 @@ def _llama_server_stream(prompt, uris, image_tokens, cfg):
     base = f"http://127.0.0.1:{shared.model.port}"
     marker = getattr(shared.model, "media_marker", None) or core.MEDIA_MARKER
     with requests.Session() as session:
+        if uris and marker == core.MEDIA_MARKER:
+            # newer llama.cpp picks a random picture marker; TextGen normally reads it at load time
+            try:
+                marker = session.get(f"{base}/props", timeout=10).json().get("media_marker") or marker
+            except (requests.RequestException, ValueError):
+                pass
         tok = session.post(f"{base}/tokenize", json={"content": prompt, "add_special": False, "parse_special": True},
                            timeout=60)
         tok.raise_for_status()
@@ -463,6 +471,8 @@ def _llama_server_stream(prompt, uris, image_tokens, cfg):
 
 
 def _textgen_stream(system, turns, uris, cfg, image_tokens=0):
+    if (shared.model is None or shared.model_name in (None, "None")) and _load_lock.locked():
+        raise H3Error("Inkling is still loading. Wait until the status line at the top shows it, then press Generate again.")
     if shared.model is None or shared.model_name in (None, "None"):
         raise H3Error("No model is loaded. Open *Model and GPU* in this tab and press *Load Inkling*.")
     if uris and not getattr(shared, "is_multimodal", False):
@@ -677,10 +687,10 @@ def generate(mode_label, img1, img2, idea, duration, aspect, shots, camera, ampl
         yield gr.update(), "", "", "❌ Describe the video you want in *Your idea*."
         return
 
+    blind = bool(images and cfg["backend"] == "textgen" and shared.model is not None
+                 and not getattr(shared, "is_multimodal", False))
     req = _request(mode_label, idea, duration, aspect, shots, camera, amplitude, speed, dialogue, dialogue_language,
-                   music, music_text, silent, style, notes, len(images))
-    blind = (images and cfg["backend"] == "textgen" and shared.model is not None
-             and not getattr(shared, "is_multimodal", False))
+                   music, music_text, silent, style, notes, 0 if blind else len(images))
     if blind and not (notes or "").strip():
         yield gr.update(), "", "", ("❌ Inkling is loaded without its vision file, so it can't see the picture. Open "
                                     "*Model and GPU* above, pick the mmproj file and press *Load Inkling*, or describe "
@@ -836,7 +846,7 @@ def ui():
 
     models, mmprojs = _available_files()
     chosen_model, chosen_mmproj = _chosen_files()
-    with gr.Accordion("Model and GPU", open=shared.model is None):
+    with gr.Accordion("Model and GPU", open=shared.model is None and not params.get("autoload")):
         with gr.Row():
             model_file = gr.Dropdown(models, value=chosen_model or None, label="Inkling 2 GGUF (user_data/models)")
             mmproj_file = gr.Dropdown(mmprojs, value=chosen_mmproj or None, label="Vision file / mmproj (user_data/mmproj)")
@@ -981,5 +991,9 @@ def ui():
     refresh_files_btn.click(_refresh_files, None, [model_file, mmproj_file]).then(
         model_status, None, status_model, queue=False)
     refresh_btn.click(model_status, None, status_model, queue=False)
+    # keep the status line current (Inkling loads in the background at start-up), without a busy indicator
+    interface = shared.gradio.get("interface") if isinstance(getattr(shared, "gradio", None), dict) else None
+    if interface is not None:
+        interface.load(model_status, None, status_model, every=10, show_progress="hidden")
     backend.change(lambda b: (params.update(backend=BACKENDS.get(b, "textgen")), model_status())[1], backend, status_model,
                    queue=False)
