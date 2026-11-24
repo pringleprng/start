@@ -44,13 +44,15 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 
 GITHUB_API = os.environ.get("H3_GITHUB_API", "https://api.github.com")
 GITHUB_RAW = os.environ.get("H3_GITHUB_RAW", "https://raw.githubusercontent.com")
 HF = os.environ.get("H3_HF", "https://huggingface.co")
+PYPI = os.environ.get("H3_PYPI", "https://pypi.org")
 
-MIN_LLAMA_BUILD = 12638          # first release (22 Nov 2026) with complete Inkling 2 support
+MIN_LLAMA_BUILD = 12653          # 23 Nov 2026: Inkling 2 tokenizer fix (#32799) and looped-MoE expert fix (#32807)
 MIN_DRIVER_BLACKWELL = 570       # RTX 50-series / CUDA 12.8
 MIN_DRIVER_CUDA13 = 580
 DEFAULT_REPO = "Abiray/Inkling-2-Mini-Uncensored-GGUF"
@@ -244,9 +246,12 @@ def auto_size_limit_gb(ram_gb: float) -> float:
 # GitHub releases
 # --------------------------------------------------------------------------------------
 
-def latest_release(repo: str, tag: str = "latest") -> dict:
-    url = f"{GITHUB_API}/repos/{repo}/releases/" + ("latest" if tag == "latest" else f"tags/{tag}")
-    return get_json(url)
+def releases(repo: str, tag: str = "latest") -> list[dict]:
+    """The given release, or the recent releases newest first (some releases lack some files)."""
+    if tag != "latest":
+        return [get_json(f"{GITHUB_API}/repos/{repo}/releases/tags/{tag}")]
+    found = get_json(f"{GITHUB_API}/repos/{repo}/releases?per_page=30")
+    return [r for r in found if not r.get("draft") and not r.get("prerelease")]
 
 
 def pick_asset(release: dict, pattern: str) -> dict | None:
@@ -255,25 +260,38 @@ def pick_asset(release: dict, pattern: str) -> dict | None:
     return sorted(matches, key=lambda a: a["name"])[-1] if matches else None
 
 
+def pick_textgen_release(rels: list[dict], cuda: str) -> tuple[dict | None, dict | None]:
+    """The newest release that has a Linux CUDA portable package (the wanted CUDA version first)."""
+    for rel in rels:
+        v = re.escape(rel["tag_name"].lstrip("v"))
+        asset = (pick_asset(rel, rf"textgen-portable-{v}-linux-cuda{re.escape(cuda)}\.(?:tar\.gz|zip)")
+                 or pick_asset(rel, rf"textgen-portable-{v}-linux-cuda[0-9.]+\.(?:tar\.gz|zip)"))
+        if asset:
+            return rel, asset
+    return None, None
+
+
 def install_textgen(base: Path, downloads: Path, gpu: dict, tag: str) -> Path:
     step("TextGen (portable, CUDA)")
-    rel = latest_release("oobabooga/textgen", tag)
-    version = rel["tag_name"].lstrip("v")
     cuda = "13.1" if gpu["driver_major"] >= MIN_DRIVER_CUDA13 or not gpu["driver_major"] else "12.4"
-    asset = pick_asset(rel, rf"textgen-portable-{re.escape(version)}-linux-cuda{re.escape(cuda)}\.tar\.gz") or \
-        pick_asset(rel, rf"textgen-portable-{re.escape(version)}-linux-cuda[0-9.]+\.tar\.gz")
+    rel, asset = pick_textgen_release(releases("oobabooga/textgen", tag), cuda)
     if not asset:
-        raise InstallError(f"no Linux CUDA build in TextGen release {rel['tag_name']}")
+        raise InstallError("no TextGen release with a Linux CUDA package found")
+    version = rel["tag_name"].lstrip("v")
     target = base / f"textgen-{version}"
     if (target / "textgen").exists():
         say(f"  ✓ TextGen {version} already installed")
     else:
-        tarball = download(asset["browser_download_url"], downloads / asset["name"], asset.get("size"))
+        archive = download(asset["browser_download_url"], downloads / asset["name"], asset.get("size"))
         say(f"  … unpacking {asset['name']}")
-        with tarfile.open(tarball) as tar:
-            safe_extract(tar, base)
+        if asset["name"].endswith(".zip"):
+            extract_zip(archive, base)
+        else:
+            with tarfile.open(archive) as tar:
+                safe_extract(tar, base)
         if not (target / "textgen").exists():
             raise InstallError(f"{asset['name']} did not contain textgen-{version}/textgen")
+        say(f"  ✓ TextGen {version}")
     # One user_data next to the version folders: TextGen uses it when it exists, and it
     # survives TextGen updates (models, settings, extensions).
     shared_ud = base / "user_data"
@@ -288,6 +306,28 @@ def install_textgen(base: Path, downloads: Path, gpu: dict, tag: str) -> Path:
     return target
 
 
+def extract_zip(archive: Path, dest: Path) -> None:
+    """Unzip keeping the Unix permissions (zipfile drops them, and the launcher must stay executable)."""
+    root = dest.resolve()
+    with zipfile.ZipFile(archive) as z:
+        for info in z.infolist():
+            target = (dest / info.filename).resolve()
+            if not target.is_relative_to(root):
+                raise InstallError(f"unsafe path in archive: {info.filename}")
+            mode = (info.external_attr >> 16) & 0o7777
+            if stat.S_ISLNK(info.external_attr >> 16):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                link = z.read(info).decode()
+                if (target.parent / link).resolve().is_relative_to(root):
+                    if target.is_symlink() or target.exists():
+                        target.unlink()
+                    target.symlink_to(link)
+                continue
+            z.extract(info, dest)
+            if mode:
+                target.chmod(mode)
+
+
 def safe_extract(tar: tarfile.TarFile, dest: Path) -> None:
     if sys.version_info >= (3, 12):
         tar.extractall(dest, filter="tar")
@@ -299,17 +339,27 @@ def safe_extract(tar: tarfile.TarFile, dest: Path) -> None:
     tar.extractall(dest)
 
 
+def pick_llama_release(rels: list[dict]) -> tuple[str, dict | None, dict | None]:
+    """The newest bNNNN release at or above MIN_LLAMA_BUILD that has both Linux CUDA 12 files
+    (a release appears before its files are built, and some builds fail)."""
+    for rel in rels:
+        m = re.fullmatch(r"b(\d+)", rel.get("tag_name", ""))
+        if not m or int(m.group(1)) < MIN_LLAMA_BUILD:
+            continue
+        name = rel["tag_name"]
+        main = pick_asset(rel, rf"llama-{re.escape(name)}-bin-ubuntu-cuda-12\.\d+-x64\.tar\.gz")
+        runtime = pick_asset(rel, rf"cudart-llama-{re.escape(name)}-bin-ubuntu-cuda-12\.\d+-x64\.tar\.gz")
+        if main and runtime:
+            return name, main, runtime
+    return "", None, None
+
+
 def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path:
     step("llama.cpp with Inkling 2 support (CUDA)")
-    rel = latest_release("ggml-org/llama.cpp", tag)
-    name = rel["tag_name"]
-    build = int(re.sub(r"\D", "", name) or 0)
-    if build < MIN_LLAMA_BUILD:
-        raise InstallError(f"llama.cpp {name} is older than b{MIN_LLAMA_BUILD}, which is needed for Inkling 2")
-    main = pick_asset(rel, rf"llama-{re.escape(name)}-bin-ubuntu-cuda-12\.\d+-x64\.tar\.gz")
-    runtime = pick_asset(rel, rf"cudart-llama-{re.escape(name)}-bin-ubuntu-cuda-12\.\d+-x64\.tar\.gz")
-    if not main or not runtime:
-        raise InstallError(f"llama.cpp {name} has no ubuntu-cuda-12.x x64 build")
+    name, main, runtime = pick_llama_release(releases("ggml-org/llama.cpp", tag))
+    if not name:
+        raise InstallError(f"no llama.cpp release b{MIN_LLAMA_BUILD} or newer with a Linux CUDA 12 build found yet; "
+                           "new releases appear every few hours, try again later")
     folder = user_data / "llama-cpp" / f"llama-{name}"
     server = folder / "llama-server"
     if server.exists() and (folder / "libcudart.so.12").exists():
@@ -330,6 +380,7 @@ def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path
             for lib in Path(tmp).rglob("*.so*"):
                 shutil.move(str(lib), folder / lib.name)
         server.chmod(server.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    ensure_openmp(folder, downloads)
     devices = subprocess.run([str(server), "--list-devices"], capture_output=True, text=True, timeout=120,
                              env={**os.environ, "LD_LIBRARY_PATH": str(folder)})
     cuda_lines = [ln.strip() for ln in (devices.stdout + devices.stderr).splitlines() if re.match(r"\s*CUDA\d+:", ln)]
@@ -341,6 +392,53 @@ def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path
              "(`nvidia-smi`), then run this installer again.")
         warn((devices.stdout + devices.stderr).strip()[-600:])
     return server
+
+
+def _missing_libs(folder: Path) -> set[str]:
+    """Shared libraries llama.cpp's CPU code cannot find on this system."""
+    probe = sorted(folder.glob("libggml-cpu-*.so")) or sorted(folder.glob("libggml-cpu*.so"))
+    if not probe or not shutil.which("ldd"):
+        return set()
+    out = subprocess.run(["ldd", str(probe[0])], capture_output=True, text=True,
+                         env={**os.environ, "LD_LIBRARY_PATH": str(folder)}).stdout
+    return {line.split()[0] for line in out.splitlines() if "not found" in line}
+
+
+def ensure_openmp(folder: Path, downloads: Path) -> None:
+    """llama.cpp's CPU code needs libgomp.so.1 (OpenMP). Without it the model does not load
+    ("no CPU backend found"). If the system lacks it, put a private copy next to llama-server;
+    it comes from scikit-learn's Linux wheel on PyPI, which ships a self-contained libgomp."""
+    forced = os.environ.get("H3_FORCE_BUNDLED_OPENMP") == "1"
+    missing = _missing_libs(folder)
+    if not forced and "libgomp.so.1" not in missing:
+        if missing:
+            warn("llama.cpp is missing system libraries: " + ", ".join(sorted(missing)))
+        else:
+            say("  ✓ system libraries for llama.cpp are present")
+        return
+    target = folder / "libgomp.so.1"
+    if not forced and target.exists():
+        return
+    say("  … libgomp.so.1 (OpenMP) is not installed on this system; adding a private copy next to llama-server")
+    try:
+        info = get_json(f"{PYPI}/pypi/scikit-learn/json")
+        wheels = [u for u in info.get("urls", []) if u["filename"].endswith(".whl")
+                  and "manylinux" in u["filename"] and "x86_64" in u["filename"]]
+        if not wheels:
+            raise InstallError("no Linux wheel listed")
+        wheel = download(wheels[0]["url"], downloads / wheels[0]["filename"], wheels[0].get("size"))
+        with zipfile.ZipFile(wheel) as z:
+            member = next((n for n in z.namelist() if re.search(r"\.libs/libgomp[-.\w]*\.so[.\d]*$", n)), None)
+            if not member:
+                raise InstallError("the wheel has no libgomp")
+            target.write_bytes(z.read(member))
+        target.chmod(0o755)
+    except (InstallError, OSError, zipfile.BadZipFile, KeyError, StopIteration) as exc:
+        raise InstallError(f"could not add libgomp ({exc}). Install it once with: rpm-ostree install libgomp "
+                           "&& systemctl reboot, then run this script again.") from exc
+    if "libgomp.so.1" in _missing_libs(folder):
+        raise InstallError("libgomp is still missing. Install it with: rpm-ostree install libgomp && systemctl reboot")
+    say("  ✓ libgomp.so.1 added")
 
 
 # --------------------------------------------------------------------------------------
@@ -445,11 +543,21 @@ def install_model(user_data: Path, repo: str, quant: str, ram_gb: float, search_
             if cand:
                 chosen_repo, parts = r, cand
                 break
+    if not parts and quant.lower() == "auto":
+        # nothing small enough anywhere: take the smallest file there is, and say so
+        smallest = None
+        for r, (files, sizes) in listings.items():
+            for group, total in _gguf_groups(files, sizes).values():
+                if smallest is None or total < smallest[2]:
+                    smallest = (r, group, total)
+        if smallest:
+            chosen_repo, parts, _ = smallest
+            warn(f"no Inkling file of {limit_gb:.1f} GB or less was found; taking the smallest one. With Fooocus "
+                 "open, lower the VRAM budget or close other programs; without Fooocus use the Whole GPU profile.")
     if not parts:
         available = "; ".join(f"{r}: {_quant_names(f)}" for r, (f, _) in listings.items())
         if quant.lower() == "auto":
-            raise InstallError(f"no Inkling file of {limit_gb:.1f} GB or less found ({available}). "
-                               "Pick one with --quant.")
+            raise InstallError(f"no Inkling file found ({available or 'no repository reachable'}).")
         raise InstallError(f"no {quant} file found ({available}). Use --quant with one of those.")
     files, sizes = listings[chosen_repo]
     total_gb = sum(sizes.get(f) or 0 for f in parts) / 1e9

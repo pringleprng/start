@@ -37,7 +37,7 @@ L2VA: How the reference pictures align with the target video — <Picture 1> (fr
 
 T2VA: no instruction line. The prompt starts directly with integrated_multimodal_description:
 
-N is the number of the final shot. S.SS is the video duration with exactly two decimals (8 seconds = 8.00).
+N is the number of the final shot. S.SS is the video duration with exactly two decimals (5 seconds = 5.00).
 
 # integrated_multimodal_description (the main body)
 
@@ -46,7 +46,7 @@ A single paragraph that follows the video in playback order, in present tense. E
 Begin [Shot 1] with the style and the opening composition, for example: "[Shot 1] Live-action, cinematic, a medium close-up frames ..." Styles: live-action, cinematic, 2D-animated, anime, 3D CG, claymation, watercolor, vintage film. With a picture, take the style from the picture: a photo is live-action; a render is 3D CG; a drawing is 2D-animated, anime or watercolor.
 
 I2VA, in four steps: first-frame anchor, then action onset, then continuous development, then result or reaction.
-1. Anchor: describe what Picture 1 actually shows: each important subject (apparent age, build, hair, clothing with colors and materials, accessories), pose and place in the frame, key props, setting, lighting, colors, depth of field. Name the picture: "the woman shown in <Picture 1>". State that appearance, clothing, colors, props and layout stay the same ("preserving her appearance, clothing and the carriage layout").
+1. Anchor: describe what Picture 1 actually shows: each important subject in the user's words (hair, clothing with colors and materials, accessories), pose and place in the frame, key props, setting, lighting and its direction, colors, depth of field. Name the picture: "the woman shown in <Picture 1>". State that appearance, clothing, colors, props and layout stay the same ("preserving her appearance, clothing and the carriage layout").
 2. Action onset: the first new movement, starting from the exact pose in the picture.
 3. Development: the motion step by step, physically believable: weight, contact, momentum, plus secondary motion (hair, fabric, steam, water, smoke, reflections, people in the background).
 4. Result: the state or reaction at the end of the video.
@@ -127,13 +127,13 @@ One paragraph of 1 to 4 sentences covering the whole video: ambience, sounds of 
 - Small, physically believable movements read best, especially from a still picture.
 - Describe what happens instead of listing what must not happen. No negative prompt lists. If the user says something must not happen, write it as one short, specific sentence at the end of the description ("No other people enter the frame.").
 - Write plain sentences only: no arrows, slashes, plus signs, hashtags, emoji, bullet points or markdown. H3 can draw such symbols as text in the video.
-- Length: integrated_multimodal_description usually 120 to 350 words, more for many shots. The whole prompt must stay under 7000 characters (H3's limit).
+- Length of integrated_multimodal_description: about 120 to 250 words for 4 to 6 seconds, 180 to 350 for 8 to 10 seconds, more for many shots. The whole prompt must stay under 7000 characters (H3's limit).
 
-# EXAMPLE 1 (I2VA, 6 seconds; the picture shows a wet golden retriever on a beach; idea: "dog shakes off the water and runs to the camera barking")
+# EXAMPLE 1 (I2VA, 5 seconds; the picture shows a wet golden retriever on a beach; idea: "dog shakes off the water and runs to the camera barking")
 
 For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
-integrated_multimodal_description: [Shot 1] Live-action, cinematic, a low medium shot frames the wet golden retriever shown in <Picture 1> standing on dark, damp sand at the water's edge, preserving its soaked golden coat, red nylon collar, the overcast grey sky and the low foaming waves behind it. The dog plants its front paws and starts to shake from head to tail; its ears flap, loose fur ripples along its back, and a fan of water droplets sprays outward and catches the soft daylight. As the shake ends, it lowers its head, looks straight into the lens and bounds toward the camera, paws kicking up clumps of wet sand. The camera pulls out with small amplitude at slow speed to keep the running dog in frame as it barks twice, mouth open and tongue out, and slows to a playful stop just in front of the lens.
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, a low medium shot frames the dog shown in <Picture 1>, a wet golden retriever standing on dark, damp sand at the water's edge, preserving its soaked golden coat, red nylon collar, the overcast grey sky and the low foaming waves behind it, in soft, even daylight. At first the dog plants its front paws and shakes from head to tail; its ears flap, loose fur ripples along its back, and a fan of water droplets sprays outward. Midway, the dog looks straight into the lens and bounds toward the camera, paws kicking up clumps of wet sand, as the camera pulls out with small amplitude at slow speed to keep it in frame. In the last second the dog barks twice, mouth open and tongue out, and stops just in front of the lens, wagging its tail.
 
 overall_soundscape: Low waves wash and hiss over the sand under a light sea breeze. A rapid flapping spray accompanies the shake, followed by quick soft paw thuds on wet sand, panting and two loud, happy barks.
 
@@ -143,17 +143,19 @@ non_diegetic_music: A light acoustic guitar strum at a moderate tempo, with hand
 
 For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
-integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium close-up frames the bearded man shown in <Picture 1> seated at a small wooden café table by the window, preserving his grey wool coat, dark scarf, the white ceramic cup in his hands and the warm, rain-streaked evening light. The camera holds a static shot as he slowly lifts his gaze from the coffee toward the door off-screen right; his fingers tighten around the cup and his breath catches. The man with a low, gravelly voice (S1) says quietly: <d>[English] You came back.</d> [Shot 2] At 00:05.500, the camera cuts to a medium-wide shot from behind his shoulder toward the café entrance as the glass door swings open; cold rain gusts in, and a figure in a dark raincoat steps inside and stops just past the threshold while water drips from the hem of the coat.
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium close-up frames the bearded man shown in <Picture 1> seated at a small wooden café table by the window, preserving his grey wool coat, dark scarf, the white ceramic cup in his hands and the warm, rain-streaked evening light. The camera holds a static shot as the man slowly lifts his gaze from the coffee toward the door off-screen right; his fingers tighten around the cup and his breath catches. The man with a low, gravelly voice (S1) says quietly: <d>[English] You came back.</d> When the line ends, his lips close and he keeps looking at the door. [Shot 2] At 00:05.500, the camera cuts to a medium-wide shot from behind the same man's shoulder toward the café entrance, in the same warm evening light, as the glass door swings open; cold rain gusts in across the threshold, the street lights outside blur in the wet glass, and the door slowly settles against its stop.
 
-overall_soundscape: Soft café room tone with rain pattering on the windows. The cup clinks against its saucer as his grip tightens, then a brass doorbell rings, the door creaks open, the rain grows louder for a moment and wet footsteps stop on the tiled floor.
+overall_soundscape: Soft café room tone with rain pattering on the windows. The cup clinks against its saucer as his grip tightens, then a brass doorbell rings, the door creaks open and the rain grows louder through the open doorway.
 
 non_diegetic_music: A slow, sparse piano motif over a sustained low cello note that grows slightly louder after the door opens.
 
-# EXAMPLE 3 (T2VA, 6 seconds, two different people; idea: "a woman standing next to a girl, the woman hands the girl a cup")
+# EXAMPLE 3 (I2VA, 5 seconds, two different people; the picture shows a woman and a girl standing in a kitchen; idea: "the woman hands the girl a cup")
 
-integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames a woman and a girl standing side by side in a sunlit kitchen. The woman, with shoulder-length brown hair and a blue cardigan, stands on the left. The girl, with two short braids and a yellow T-shirt, stands on the right. The woman holds a white ceramic cup in her right hand. The camera holds a static shot. The woman turns toward the girl, bends slightly and hands the cup to the girl. The girl takes the cup with both hands, looks down into it and smiles up at the woman. The woman rests a hand on the girl's shoulder.
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
-overall_soundscape: Quiet kitchen ambience with a ticking wall clock. Soft footsteps on the tiled floor and a light clink as the girl's fingers close around the cup.
+integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames the woman and the girl shown in <Picture 1> standing side by side in a sunlit kitchen, the woman on the left and the girl on the right, preserving the woman's shoulder-length brown hair and blue cardigan, the girl's two short braids and yellow T-shirt, the white ceramic cup in the woman's right hand and the soft window light from the left. The camera holds a static shot. At first the woman turns toward the girl and holds out the cup. Midway, the woman hands the cup to the girl, and the girl takes it with both hands. In the last second the girl looks down into the cup and smiles, and the woman lowers her empty hand to her side.
+
+overall_soundscape: Quiet kitchen ambience with a ticking wall clock. A light ceramic clink as the cup passes from the woman's hand to the girl's hands.
 
 non_diegetic_music: A soft solo piano melody at a slow tempo with sparse, quiet chords.
 
@@ -163,7 +165,8 @@ non_diegetic_music: A soft solo piano melody at a slow tempo with sparse, quiet 
 2. The three fields appear once each, in order, separated by blank lines.
 3. [Shot 1] has no timestamp; later shots have increasing MM:SS.mmm cut times inside the duration.
 4. The picture is named (<Picture 1>, Picture 2) and the scene stays consistent with it.
-5. Every person is there with the user's kind, age group and number, each with one clear label, and every action goes in the user's direction.
-6. Dialogue is verbatim inside <d>[Language] ...</d> with speaker IDs.
-7. overall_soundscape and non_diegetic_music are filled in, or N/A.
-8. Nothing but the prompt is in your answer.
+5. Every person is there in the user's words and number, with no added ages, each with one clear label, and every action goes in the user's direction.
+6. The first movement starts at once, the beats fit the duration, and the last sentence is the state that holds at the end.
+7. Dialogue is verbatim inside <d>[Language] ...</d> with speaker IDs.
+8. overall_soundscape and non_diegetic_music are filled in, or N/A.
+9. Nothing but the prompt is in your answer.

@@ -71,6 +71,72 @@ class AutoSize(unittest.TestCase):
         self.assertEqual(inst.choose_mmproj(["x.gguf"]), "")
 
 
+def _asset(name):
+    return {"name": name, "size": 1, "browser_download_url": "https://example.invalid/" + name}
+
+
+class PickReleases(unittest.TestCase):
+    LLAMA = [
+        {"tag_name": "b12657", "assets": [_asset("llama-b12657-bin-win-cpu-x64.zip")]},  # Linux files not built yet
+        {"tag_name": "b12655", "assets": [_asset("llama-b12655-bin-ubuntu-cuda-12.8-x64.tar.gz"),
+                                          _asset("cudart-llama-b12655-bin-ubuntu-cuda-12.8-x64.tar.gz"),
+                                          _asset("llama-b12655-bin-ubuntu-cuda-13.5-x64.tar.gz")]},
+        {"tag_name": "b12654", "assets": [_asset("llama-b12654-bin-ubuntu-cuda-12.8-x64.tar.gz")]},  # no runtime
+        {"tag_name": "v1.0.0", "assets": []},
+        {"tag_name": "b12638", "assets": [_asset("llama-b12638-bin-ubuntu-cuda-12.8-x64.tar.gz"),
+                                          _asset("cudart-llama-b12638-bin-ubuntu-cuda-12.8-x64.tar.gz")]},
+    ]
+
+    def test_llama_newest_complete_build(self):
+        name, main, runtime = inst.pick_llama_release(self.LLAMA)
+        self.assertEqual(name, "b12655")
+        self.assertEqual(main["name"], "llama-b12655-bin-ubuntu-cuda-12.8-x64.tar.gz")
+        self.assertEqual(runtime["name"], "cudart-llama-b12655-bin-ubuntu-cuda-12.8-x64.tar.gz")
+
+    def test_llama_never_older_than_the_inkling_fixes(self):
+        old = [r for r in self.LLAMA if r["tag_name"] in ("b12638", "v1.0.0")]
+        self.assertEqual(inst.pick_llama_release(old), ("", None, None))
+        self.assertGreaterEqual(inst.MIN_LLAMA_BUILD, 12653)
+
+    def test_textgen_skips_release_without_linux_package(self):
+        rels = [{"tag_name": "v5.0", "assets": [_asset("textgen-portable-5.0-windows-cuda13.1.zip")]},
+                {"tag_name": "v4.9", "assets": [_asset("textgen-portable-4.9-linux-cuda12.4.tar.gz"),
+                                                _asset("textgen-portable-4.9-linux-cuda13.1.zip")]}]
+        rel, asset = inst.pick_textgen_release(rels, "13.1")
+        self.assertEqual((rel["tag_name"], asset["name"]), ("v4.9", "textgen-portable-4.9-linux-cuda13.1.zip"))
+        rel, asset = inst.pick_textgen_release(rels, "12.4")
+        self.assertEqual(asset["name"], "textgen-portable-4.9-linux-cuda12.4.tar.gz")
+        self.assertEqual(inst.pick_textgen_release(rels[:1], "13.1"), (None, None))
+
+
+class Zip(unittest.TestCase):
+    def test_keeps_exec_bit_and_symlinks_and_refuses_escape(self):
+        import stat
+        import zipfile
+        d = Path(tempfile.mkdtemp())
+        archive = d / "t.zip"
+        with zipfile.ZipFile(archive, "w") as z:
+            info = zipfile.ZipInfo("textgen-4.9/textgen")
+            info.external_attr = (stat.S_IFREG | 0o755) << 16
+            z.writestr(info, "#!/bin/sh\necho hi\n")
+            link = zipfile.ZipInfo("textgen-4.9/run")
+            link.external_attr = (stat.S_IFLNK | 0o777) << 16
+            z.writestr(link, "textgen")
+            z.writestr("textgen-4.9/user_data/a.txt", "a")
+        out = d / "out"
+        out.mkdir()
+        inst.extract_zip(archive, out)
+        self.assertTrue((out / "textgen-4.9/textgen").stat().st_mode & stat.S_IXUSR)
+        self.assertTrue((out / "textgen-4.9/run").is_symlink())
+        self.assertEqual((out / "textgen-4.9/user_data/a.txt").read_text(), "a")
+        bad = d / "bad.zip"
+        with zipfile.ZipFile(bad, "w") as z:
+            z.writestr("../escape.txt", "x")
+        with self.assertRaises(inst.InstallError):
+            inst.extract_zip(bad, out)
+        self.assertFalse((d / "escape.txt").exists())
+
+
 class CmdFlags(unittest.TestCase):
     def _run(self, text):
         d = Path(tempfile.mkdtemp())

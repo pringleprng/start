@@ -38,10 +38,10 @@ CASES = [
          dict(mode="T2VA", idea="two women sit at a cafe table and the older woman pours tea for the younger woman",
               duration=8)),
     Case("picture-push-in", "image to video: the picture as first frame, push in with small amplitude at slow speed",
-         dict(mode="I2VA", idea="the person in the picture smiles and waves at the camera", duration=8,
+         dict(mode="I2VA", idea="the person in the picture smiles and waves at the camera", duration=5,
               camera="Push In", amplitude="small", speed="slow"), needs_picture=True),
     Case("picture-spanish-line", "image to video with a Spanish line kept in Spanish",
-         dict(mode="I2VA", idea="they look at the camera and greet their friends", duration=6,
+         dict(mode="I2VA", idea="they look at the camera and greet their friends", duration=5,
               dialogue="¡Hola, amigos!", dialogue_language="Spanish"), needs_picture=True),
 ]
 

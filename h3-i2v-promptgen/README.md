@@ -40,10 +40,13 @@ The script:
 
 1. checks the GPU and driver with `nvidia-smi`;
 2. installs **TextGen** portable (CUDA build, its own Python) into `~/AI/textgen/textgen-<version>/`;
-3. installs **llama.cpp** (newest release, b12638 or later, needed for Inkling 2) as the CUDA 12.8 build, which
-   has native RTX 50-series kernels. It puts NVIDIA's CUDA runtime (`libcudart`, `libcublas`) next to it,
-   because Bazzite has no CUDA toolkit; only the NVIDIA driver is needed. It then checks that llama.cpp
-   sees the card (`CUDA0: NVIDIA GeForce RTX 5080`);
+3. installs **llama.cpp** (the newest release that has a Linux CUDA build, **b12653 or later**: that build fixes
+   Inkling 2's tokenizer and its expert weights) as the CUDA 12.8 build, which has native RTX 50-series
+   kernels. It puts NVIDIA's CUDA runtime (`libcudart`, `libcublas`) next to it, because Bazzite has no CUDA
+   toolkit; only the NVIDIA driver is needed. If Bazzite lacks OpenMP (`libgomp.so.1`, which llama.cpp's CPU
+   code needs), it adds a private copy next to `llama-server` (from the official scikit-learn wheel on PyPI)
+   instead of changing your system. It then checks that llama.cpp sees the card
+   (`CUDA0: NVIDIA GeForce RTX 5080`);
 4. downloads **Inkling 2 Mini Uncensored** and its **mmproj** (vision) from Hugging Face. The size is
    chosen from your RAM: the biggest file up to *RAM − 5 GB* (about **10–11 GB with 16 GB RAM**, a
    ~3-bit quant such as IQ3_XXS; with 32 GB+ it takes Q4_K_M). It checks several uncensored uploads if the
@@ -126,7 +129,7 @@ is from June 2026 and cannot load the model yet ("unknown model architecture: in
 Once TextGen ships a newer llama.cpp you can skip this step.
 
 1. Open [github.com/ggml-org/llama.cpp/releases](https://github.com/ggml-org/llama.cpp/releases) and take
-   release **b12638 or newer** (22 Nov 2026+).
+   release **b12653 or newer** (23 Nov 2026+; it fixes Inkling 2's tokenizer and expert weights).
 2. Download the file for your machine:
    - Windows + NVIDIA: `llama-bXXXXX-bin-win-cuda-12.4-x64.zip` and `cudart-llama-bin-win-cuda-12.4-x64.zip`.
      If the CUDA zip only contains `ggml-cuda.dll`, also download `llama-bXXXXX-bin-win-cpu-x64.zip`.
@@ -135,7 +138,7 @@ Once TextGen ships a newer llama.cpp you can skip this step.
      (the CUDA runtime; needed unless you have the CUDA toolkit installed). Other: `...-bin-ubuntu-vulkan-x64.tar.gz`
      or `...-bin-ubuntu-x64.tar.gz`. On Bazzite, use [the setup script](#bazzite--rtx-5080-install-with-one-script) instead.
    - Mac (Apple Silicon): `...-bin-macos-arm64.tar.gz`
-3. Unpack it into `user_data/llama-cpp/` inside TextGen (it creates a folder like `llama-b12638/`). Put the
+3. Unpack it into `user_data/llama-cpp/` inside TextGen (it creates a folder like `llama-b12655/`). Put the
    files from the `cudart-…` download **into that same folder, next to `llama-server`**.
 
 The H3 tab finds `llama-server` there by itself and makes TextGen's llama.cpp loader use it. You don't
@@ -188,7 +191,9 @@ The status line at the top should now show `vision on · Inkling native format`.
 2. **Picture 1**: drop in the image you will give MiniMax H3 as the first frame (or paste it).
 3. **Your idea**: what should happen, in plain words, any language. For example *"she looks up, smiles at the rain,
    then splashes through a puddle"*.
-4. **Duration**: the length you will generate on H3 (4–15 s). Cut times are kept inside it.
+4. **Duration**: the length you will generate on H3 (4–15 s, default **5 s**). Cut times are kept inside it,
+   and the model is told how much action fits: for 5 s that is 2–3 clear beats in one continuous shot
+   (*at first … midway … in the last second …*), ending on a state that holds.
 5. Optional: shots, camera move (+ amplitude / speed), spoken lines (kept word for word), music or
    complete silence, a style.
 6. Optional: **👁 Describe picture** shows what the model reads from the image. Correct anything wrong;
@@ -249,7 +254,7 @@ The rules the model follows (full text in `system_prompt.md`): MiniMax's officia
 MiniMax's own H3 video skills and H3 users add:
 
 - Line 1 is MiniMax's fixed instruction for the mode, exact to the character. FL2VA and L2VA lines carry the
-  last shot number and the duration (`8.00`). T2VA has no instruction line.
+  last shot number and the duration (`5.00`). T2VA has no instruction line.
 - Then three fields, in this order: `integrated_multimodal_description` (the timeline: what you see and hear),
   `overall_soundscape` (ambience and action sounds, 1–4 sentences), `non_diegetic_music` (score only the
   audience hears, 1–3 sentences, or `N/A`).
@@ -285,7 +290,7 @@ it unchanged.
 
 **Parameters** tab → *Instruction template* sub-tab → *Saved instruction templates* →
 **Inkling 2 - H3 Director** → **Load**; *Preset* → **H3 Director**. In the **Chat** tab set *Mode* to
-**instruct**, attach the picture with 📎 and type your idea, including the length ("8 seconds"). The template contains the H3 rules, turns thinking off and puts the picture where
+**instruct**, attach the picture with 📎 and type your idea, including the length ("5 seconds"). The template contains the H3 rules, turns thinking off and puts the picture where
 Inkling expects it. The tab is still better: it adds the fixed first line, checks the format and repairs it.
 
 ## Plan B: run llama-server yourself
@@ -305,7 +310,9 @@ LM Studio, Ollama or any OpenAI-compatible server with a vision model.
 | Message | Fix |
 |---|---|
 | `unknown model architecture: 'inkling2'` when loading | Step 2: newer llama.cpp in `user_data/llama-cpp/`, restart TextGen, load with *Load Inkling* (not `--model`) |
-| *The loaded model can't see pictures* | Pick the `mmproj-…` file in *Model and GPU* and press *Load Inkling* again |
+| *The loaded model can't see pictures* / *loaded without its vision file* | Pick the `mmproj-…` file in *Model and GPU* and press *Load Inkling* again. If the vision file does not load, Inkling still loads without it and says so; until then you can describe the picture in *Picture notes* |
+| Installer: *no llama.cpp release b12653 or newer with a Linux CUDA 12 build found yet* | New builds appear every few hours; run the script again later |
+| Installer: *libgomp.so.1 … could not be added* | Run `rpm-ostree install libgomp`, reboot, run the script again |
 | *The request needs about N tokens, but the model was loaded with a context of …* | Load the model with ctx-size 16384 or more |
 | *No model is loaded* | *Model and GPU* → *Load Inkling* (or switch the backend to a server URL) |
 | Installer: *llama.cpp does not see the GPU* (Bazzite) | You are on a non-NVIDIA Bazzite image or the driver isn't running: check `nvidia-smi`; RTX 50 cards need the `-nvidia-open` image |

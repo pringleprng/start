@@ -368,6 +368,19 @@ def people_requirements(idea: str) -> list[str]:
     return lines
 
 
+def pace_hint(seconds: int) -> str:
+    """How much action fits the clip (H3 renders 4 to 15 seconds)."""
+    if seconds <= 6:
+        beats, words = "2 to 3 clear action beats", "about 120 to 250 words"
+    elif seconds <= 10:
+        beats, words = "3 to 5 clear action beats", "about 180 to 350 words"
+    else:
+        beats, words = "5 or more clear action beats", "about 250 to 450 words"
+    return (f"{seconds} seconds fits {beats}. The first movement starts at once, time words place the beats "
+            "(at first, midway, in the last second), and the last sentence is the state that holds until the end. "
+            f"integrated_multimodal_description: {words}.")
+
+
 def build_user_message(req: Request) -> str:
     req.clamp()
     d = req.duration
@@ -375,6 +388,7 @@ def build_user_message(req: Request) -> str:
         "Write one MiniMax H3 prompt.",
         f"MODE: {req.mode}. {_picture_sentence(req)}",
         f"DURATION: {d} seconds. Every cut time must be earlier than 00:{d:02d}.000.",
+        f"PACE: {pace_hint(d)}",
     ]
     if req.aspect_ratio and req.aspect_ratio != "adaptive":
         out.append(f"ASPECT RATIO: {req.aspect_ratio}. Compose the shots for this frame.")
@@ -441,8 +455,7 @@ def build_describe_message(n_images: int) -> str:
         f"Describe {who} as short factual lines:\n"
         "Style/medium: (photo, 3D render, anime, painting ...)\n"
         "Shot size and camera angle:\n"
-        "Subjects: how many people; for each one: adult or child, apparent age, gender, build, hair, face, "
-        "clothing with colors and materials, "
+        "Subjects: how many people; for each one: hair, clothing with colors and materials, "
         "accessories, pose, position in the frame, expression\n"
         "Setting:\n"
         "Key props:\n"
@@ -916,6 +929,9 @@ def validate(prompt: str, req: Request) -> list[Issue]:
         warn(f"integrated_multimodal_description is short ({words} words); H3 follows detailed timelines better.")
     elif words > 900:
         warn(f"integrated_multimodal_description is very long ({words} words).")
+    elif req is not None and words > (350 if req.duration <= 6 else 500 if req.duration <= 10 else 900):
+        warn(f"integrated_multimodal_description has {words} words, a lot for {req.duration} seconds: H3 may rush "
+             "or skip actions. Fewer, clearer beats work better.")
     return issues
 
 

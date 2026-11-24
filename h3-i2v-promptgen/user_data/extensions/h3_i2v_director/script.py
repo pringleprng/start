@@ -14,6 +14,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import stat
 import sys
 import threading
@@ -44,6 +45,7 @@ sys.modules.setdefault("h3_core", core)  # h3_selftest imports it by this name
 selftest = _load_local("h3_i2v_director_selftest", "h3_selftest.py")
 
 SETTINGS_FILE = HERE / "settings.json"
+MIN_LLAMA_BUILD = 12653  # llama.cpp fixes for Inkling 2 (tokenizer #32799, looped-MoE experts #32807)
 
 params = {
     "display_name": "H3 I2V Director",
@@ -111,8 +113,14 @@ def _find_llama_server():
         if place.is_dir():
             found = [p for p in place.rglob(exe) if p.is_file()]
             if found:
-                return max(found, key=lambda p: p.stat().st_mtime)
+                return max(found, key=lambda p: (_llama_build(p), p.stat().st_mtime))
     return None
+
+
+def _llama_build(server_path):
+    """The build number from a release folder name like llama-b12655/, or 0."""
+    m = re.search(r"llama-b(\d+)", str(server_path))
+    return int(m.group(1)) if m else 0
 
 
 def _translate_flags(cmd):
@@ -160,10 +168,38 @@ def _use_llama_server(path):
         lcs.subprocess = _SubprocessShim(lcs.subprocess)
     _override["path"] = str(path)
     logger.info(f"H3 I2V Director: TextGen's llama.cpp loader will use {path}")
+    build = _llama_build(path)
+    if build and build < MIN_LLAMA_BUILD:
+        logger.warning(f"H3 I2V Director: llama.cpp b{build} is older than b{MIN_LLAMA_BUILD}, which fixes Inkling 2's "
+                       "tokenizer and its expert weights; run the setup script again to update it.")
+
+
+def _guard_textgen_page_load():
+    """TextGen 4.9 quirk (happens with any extension once a model is loaded): on page load its sampler
+    filter can get loader None, which prints a KeyError, and the autosave then writes `mode: null`.
+    Both are harmless but noisy; treat a missing loader as llama.cpp and a missing mode as instruct."""
+    try:
+        from modules import loaders
+    except Exception:
+        return
+    original = getattr(loaders, "blacklist_samplers", None)
+    if original is None or getattr(original, "_h3_guard", False):
+        return
+
+    def blacklist_samplers(loader, dynamic_temperature):
+        if loader != "All" and loader not in getattr(loaders, "loaders_samplers", {}):
+            loader = "llama.cpp"
+        return original(loader, dynamic_temperature)
+
+    blacklist_samplers._h3_guard = True
+    loaders.blacklist_samplers = blacklist_samplers
+    if shared.settings.get("mode") is None:
+        shared.settings["mode"] = "instruct"
 
 
 def setup():
     _load_settings()
+    _guard_textgen_page_load()
     path = _find_llama_server()
     if path:
         _use_llama_server(path)
@@ -204,7 +240,6 @@ def _mmproj_mb(name):
 
 def load_inkling(model_file="", mmproj_file="", profile_key=None, budget_gb=None):
     """Load the model with a GPU profile. Returns a status line (Markdown)."""
-    from modules.api.models import _load_model
     from modules.models import unload_model
 
     model, mmproj = _chosen_files(model_file, mmproj_file)
@@ -218,25 +253,50 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None, budget_gb=None
     args = sysinfo.load_args(mmproj, params["ctx_size"], margin)
     if not _load_lock.acquire(blocking=False):
         return "⏳ A model is already being loaded."
+    vision_note = ""
     try:
         logger.info(f"H3 I2V Director: loading {model} (mmproj {mmproj or 'none'}, profile {profile}, "
                     f"leaving {margin} MiB of VRAM free)")
-        _load_model({"model_name": model, "args": args})
-    except Exception as exc:
-        logger.exception("H3 I2V Director: model load failed")
-        hint = ""
-        if "inkling" in str(exc).lower() or "architecture" in str(exc).lower() or not _override["path"]:
-            hint = (" TextGen's built-in llama.cpp is too old for Inkling 2: put a llama.cpp release (b12638+) "
-                    "in `user_data/llama-cpp/` and restart TextGen.")
-        return f"❌ Loading failed: {type(exc).__name__}: {exc}.{hint}"
+        error = _try_load(model, args)
+        if error and mmproj:
+            # a vision file that does not fit this model or this llama.cpp: keep the text side working
+            logger.warning(f"H3 I2V Director: loading with {mmproj} failed ({error}); trying without vision")
+            unload_model()
+            margin = sysinfo.fit_margin_mb(profile, budget, 0, sysinfo.gpu_info())
+            if not _try_load(model, sysinfo.load_args("", params["ctx_size"], margin)):
+                vision_note = (f" ⚠️ The vision file `{mmproj}` did not load ({error}), so pictures cannot be read: "
+                               "pick another mmproj file in the list (it must come from the same Inkling 2 Mini "
+                               "upload) and press Load.")
+                mmproj = ""
+                error = None
+        if error:
+            hint = ""
+            if "inkling" in error.lower() or "architecture" in error.lower() or not _override["path"]:
+                hint = (f" TextGen's built-in llama.cpp is too old for Inkling 2: put a llama.cpp release "
+                        f"(b{MIN_LLAMA_BUILD} or newer) in `user_data/llama-cpp/` and restart TextGen, "
+                        "or run the setup script again.")
+            return f"❌ Loading failed: {error}.{hint}"
     finally:
         _load_lock.release()
-    if shared.model is None:
-        return "❌ Loading failed; see the TextGen console."
     where = (f"VRAM budget {budget:g} GB, the rest in system RAM" if profile == "fit"
              else "as much as fits on the GPU")
     _loaded.update(profile=where, model=model)
-    return f"✅ Loaded `{model}` with {'`' + mmproj + '`' if mmproj else 'no mmproj (no vision)'} · {where}."
+    return (f"✅ Loaded `{model}` with {'`' + mmproj + '`' if mmproj else 'no mmproj (no vision)'} · {where}."
+            + vision_note)
+
+
+def _try_load(model, args):
+    """Load through TextGen. None on success, else a short error text."""
+    from modules.api.models import _load_model
+
+    try:
+        _load_model({"model_name": model, "args": args})
+    except Exception as exc:
+        logger.exception("H3 I2V Director: model load failed")
+        return f"{type(exc).__name__}: {exc}"
+    if shared.model is None:
+        return "llama-server did not start (see the TextGen console)"
+    return None
 
 
 def unload_inkling():
@@ -246,8 +306,31 @@ def unload_inkling():
     return "Model unloaded; its GPU memory is free again."
 
 
+def _ui_is_up(timeout=180):
+    """Wait until TextGen's web interface is built and serving (loading a model while TextGen is still
+    building its interface mixes up TextGen's own page-load events)."""
+    import socket
+
+    if getattr(shared.args, "nowebui", False):
+        return True
+    port = int(getattr(shared.args, "listen_port", None) or 7860)
+    host = getattr(shared.args, "listen_host", None) or "127.0.0.1"
+    host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    end = time.time() + timeout
+    while time.time() < end:
+        if "interface" in getattr(shared, "gradio", {}):
+            try:
+                with socket.create_connection((host, port), timeout=1):
+                    return True
+            except OSError:
+                pass
+        time.sleep(1)
+    return False
+
+
 def _autoload():
-    time.sleep(2)
+    _ui_is_up()
+    time.sleep(1)
     if shared.model is None:
         logger.info("H3 I2V Director: " + load_inkling())
 
@@ -381,10 +464,10 @@ def _llama_server_stream(prompt, uris, image_tokens, cfg):
 
 def _textgen_stream(system, turns, uris, cfg, image_tokens=0):
     if shared.model is None or shared.model_name in (None, "None"):
-        raise H3Error("No model is loaded. Open the Model tab, choose Inkling 2 Mini and its mmproj file, click Load.")
+        raise H3Error("No model is loaded. Open *Model and GPU* in this tab and press *Load Inkling*.")
     if uris and not getattr(shared, "is_multimodal", False):
-        raise H3Error("The loaded model can't see pictures: no mmproj (vision projector) is loaded. "
-                      "In the Model tab pick the mmproj file under \"Multimodal (vision)\" and reload.")
+        raise H3Error("The loaded model can't see pictures: no mmproj (vision file) is loaded. Open *Model and GPU* "
+                      "in this tab, pick the mmproj file and press *Load Inkling*.")
 
     if core.is_inkling(shared.model_name, shared.settings.get("instruction_template_str", "")):
         if getattr(shared.model, "port", None):
@@ -596,8 +679,16 @@ def generate(mode_label, img1, img2, idea, duration, aspect, shots, camera, ampl
 
     req = _request(mode_label, idea, duration, aspect, shots, camera, amplitude, speed, dialogue, dialogue_language,
                    music, music_text, silent, style, notes, len(images))
+    blind = (images and cfg["backend"] == "textgen" and shared.model is not None
+             and not getattr(shared, "is_multimodal", False))
+    if blind and not (notes or "").strip():
+        yield gr.update(), "", "", ("❌ Inkling is loaded without its vision file, so it can't see the picture. Open "
+                                    "*Model and GPU* above, pick the mmproj file and press *Load Inkling*, or describe "
+                                    "the picture in *Picture notes*.")
+        return
     try:
-        encoded = [_image_data_uri(img, params["max_image_side"]) for img in images]
+        # without vision, the picture notes stand in for the picture (it is still Picture 1 in the prompt)
+        encoded = [] if blind else [_image_data_uri(img, params["max_image_side"]) for img in images]
         last, result = 0.0, None
         for event in _pipeline(req, encoded, cfg):
             if event[0] == "progress":
@@ -772,7 +863,7 @@ def ui():
             idea = gr.Textbox(label="Your idea", lines=4,
                               placeholder="e.g. she turns to the window and smiles as the train starts moving, rain on the glass")
             with gr.Row():
-                duration = gr.Slider(core.MIN_SECONDS, core.MAX_SECONDS, value=8, step=1, label="Duration (seconds)")
+                duration = gr.Slider(core.MIN_SECONDS, core.MAX_SECONDS, value=5, step=1, label="Duration (seconds)")
                 shots = gr.Dropdown(["Auto", "1 (one continuous shot)", "2", "3", "4"], value="Auto", label="Shots")
                 aspect = gr.Dropdown(["adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"], value="adaptive",
                                      label="Aspect ratio")
