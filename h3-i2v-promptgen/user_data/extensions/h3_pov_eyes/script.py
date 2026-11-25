@@ -135,8 +135,8 @@ def generate(img1, mode_label, who, snap_at, idea, duration, head, hands, dialog
     blind = bool(img1 is not None and cfg["backend"] == "textgen" and shared.model is not None
                  and not getattr(shared, "is_multimodal", False))
     if blind and not (notes or "").strip():
-        yield gr.update(), "", "", ("❌ Inkling is loaded without its vision file, so it can't see the picture. Load it "
-                                    "with its mmproj file (*Load Inkling* in the H3 I2V Director tab), or describe the "
+        yield gr.update(), "", "", ("❌ Inkling is loaded without its vision file, so it can't see the picture. Press "
+                                    "*Load Inkling* above to load it again with its vision file, or describe the "
                                     "picture in *Picture notes*.")
         return
     preq = _request(mode_label, who, snap_at, idea, duration, head, hands, dialogue, dialogue_language, music,

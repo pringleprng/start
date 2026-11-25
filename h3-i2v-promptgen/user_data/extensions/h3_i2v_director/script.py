@@ -81,6 +81,7 @@ MODE_BY_LABEL = {v: k for k, v in core.MODE_LABELS.items()}
 
 _stop = threading.Event()
 _override = {"path": None}
+_autoload_pending = threading.Event()   # set from start-up until the auto-load has run
 _loaded = {"profile": ""}   # how the current model was loaded by this tab
 
 
@@ -203,7 +204,8 @@ def setup():
     path = _find_llama_server()
     if path:
         _use_llama_server(path)
-    if params.get("autoload") and shared.model is None:
+    if params.get("autoload") and shared.model is None and not _autoload_pending.is_set():
+        _autoload_pending.set()
         threading.Thread(target=_autoload, daemon=True).start()
 
 
@@ -329,10 +331,13 @@ def _ui_is_up(timeout=180):
 
 
 def _autoload():
-    _ui_is_up()
-    time.sleep(1)
-    if shared.model is None:
-        logger.info("H3 I2V Director: " + load_inkling())
+    try:
+        _ui_is_up()
+        time.sleep(1)
+        if shared.model is None:
+            logger.info("H3 I2V Director: " + load_inkling())
+    finally:
+        _autoload_pending.clear()
 
 
 # --------------------------------------------------------------------------------------
@@ -387,7 +392,7 @@ def model_status():
     if params["backend"] == "openai":
         return f"Backend: server at `{_api_base(params['api_url'])}`  \n{gpu}"
     name = shared.model_name if shared.model_name not in (None, "None") and shared.model is not None else None
-    if not name and _load_lock.locked():
+    if not name and (_load_lock.locked() or _autoload_pending.is_set()):
         return f"Backend: TextGen · ⏳ **loading Inkling…** (this line updates by itself)  \n{gpu}"
     if not name:
         return f"Backend: TextGen · **no model loaded** (use *Load Inkling* below)  \n{gpu}"
@@ -471,13 +476,14 @@ def _llama_server_stream(prompt, uris, image_tokens, cfg):
 
 
 def _textgen_stream(system, turns, uris, cfg, image_tokens=0):
-    if (shared.model is None or shared.model_name in (None, "None")) and _load_lock.locked():
+    if (shared.model is None or shared.model_name in (None, "None")) and (_load_lock.locked() or _autoload_pending.is_set()):
         raise H3Error("Inkling is still loading. Wait until the status line at the top shows it, then press Generate again.")
     if shared.model is None or shared.model_name in (None, "None"):
-        raise H3Error("No model is loaded. Open *Model and GPU* in this tab and press *Load Inkling*.")
+        raise H3Error("No model is loaded. Press *Load Inkling* (in the H3 I2V Director tab it is under *Model and GPU*).")
     if uris and not getattr(shared, "is_multimodal", False):
-        raise H3Error("The loaded model can't see pictures: no mmproj (vision file) is loaded. Open *Model and GPU* "
-                      "in this tab, pick the mmproj file and press *Load Inkling*.")
+        raise H3Error("The loaded model can't see pictures: no mmproj (vision file) is loaded. Press *Load Inkling* to "
+                      "load it again with its vision file (the file is chosen under *Model and GPU* in the H3 I2V "
+                      "Director tab).")
 
     if core.is_inkling(shared.model_name, shared.settings.get("instruction_template_str", "")):
         if getattr(shared.model, "port", None):

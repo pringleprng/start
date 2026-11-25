@@ -649,7 +649,7 @@ def _embedded_files() -> dict[str, bytes]:
 
 
 def install_h3_files(user_data: Path, source_repo: str, branch: str) -> None:
-    step("H3 I2V Director tab")
+    step("H3 tabs: H3 I2V Director and H3 POV: her eyes")
     # run from a pipe (curl … | bash) there is no __file__
     local_root = Path(__file__).resolve().parent.parent if "__file__" in globals() else None
     embedded = _embedded_files() if EMBEDDED_FILES else {}

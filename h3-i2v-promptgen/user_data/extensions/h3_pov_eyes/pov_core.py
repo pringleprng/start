@@ -87,8 +87,10 @@ class PovRequest:
         self.head = self.head if self.head in HEAD else "steady"
         self.hands = self.hands if self.hands in HANDS else "auto"
         who = re.sub(r"[^\w' -]", "", (self.who or "")).strip().lower()
-        who = re.sub(r"^(?:the|a|an)\s+", "", who)
-        self.who = who or "girl"
+        who = re.sub(r"^(?:the|a|an|my)\s+", "", who)
+        who = re.sub(r"'s?$", "", who).strip()
+        # a pronoun is not a label ("the her's eyes"): fall back to the default word
+        self.who = "girl" if who in ("", "she", "her", "hers", "herself", "i", "me", "my", "myself") else who
         try:
             self.duration = int(round(float(self.duration)))
         except (TypeError, ValueError):
@@ -149,7 +151,11 @@ def build_user_message(r: PovRequest) -> str:
                f"{who}'s face or head from the outside after the POV starts. People who look at her look into the lens.")
     out.append(f"- Head movement: {HEAD[r.head][1]}")
     out.append(f"- Hands: {HANDS[r.hands][1].replace('the girl', 'the ' + who)}")
-    out += core.people_requirements(r.idea)
+    people = core.people_requirements(r.idea)
+    out += people
+    if any("side of the frame" in line for line in people):
+        out.append(f"- In the {who}'s POV, place people as she sees them: in front of her, to her left or to her right"
+                   + (" (the left/right sides above belong to [Shot 1], the outside view)." if r.mode == "snap" else "."))
 
     lines = core.dialogue_lines(r.dialogue)
     if lines:
@@ -234,20 +240,25 @@ def pov_checks(prompt: str, r: PovRequest) -> list:
                         f"POV: say that the camera is \"at the {who}'s eye height\".", repair=not ok))
 
     if not MIRROR_RE.search(r.idea or ""):  # a mirror the user asked for may show her
-        outside = re.search(rf"\b(?:frames|shows|close-up of|shot of)\s+the\s+{re.escape(who)}\b|"
-                            rf"\bthe\s+{re.escape(who)}'s\s+(?:face|head|hair|eyes\s+widen)|"
-                            rf"\b{re.escape(who)}\s+(?:smiles|frowns|blinks|nods)\b", pov, re.I)
+        # her face, or a framing of her, gives away an outside view; her hands, hair at the edge of the frame
+        # or a nod (the POV dips) are fine from her eyes
+        outside = re.search(rf"\b(?:frames|shows|close-up of|shot of)\s+the\s+{re.escape(who)}\b(?!')|"
+                            rf"\bthe\s+{re.escape(who)}'s\s+(?:face|smile|expression|eyes\s+widen)|"
+                            rf"\b{re.escape(who)}\s+(?:smiles|grins|frowns|blinks|winks)\b", pov, re.I)
         checks.append(Check(outside is None, "POV: her face stays out of view (she is the camera)" if outside is None else
                             f"POV: \"{outside.group(0)}\" shows the {who} from the outside, but the camera is her eyes; "
                             "describe only what she sees (her hands may enter from the bottom of the frame).",
                             repair=outside is not None))
-    hands = re.search(rf"\b(?:the\s+{re.escape(who)}'s|her)\s+(?:hands?|fingers|forearms?|arms?)\b", pov, re.I)
+    limbs = r"\s+(?:hands?|fingers|forearms?|arms?)\b"
+    own = re.search(rf"\bthe\s+{re.escape(who)}'s{limbs}", pov, re.I)   # surely hers
     if r.hands == "yes":
+        hands = own or re.search(rf"\bher{limbs}", pov, re.I)          # "her hands" usually means hers here
         checks.append(Check(hands is not None, f"Hands: the {who}'s hands are in view" if hands else
                             f"Hands: show the {who}'s hands at the bottom of the frame.", repair=hands is None))
     elif r.hands == "no":
-        checks.append(Check(hands is None, "Hands: her hands stay out of view" if hands is None else
-                            f"Hands: keep the {who}'s hands out of the frame (asked: never in view).", repair=hands is not None))
+        # only "the girl's hands" counts: "her hands" may be another woman's
+        checks.append(Check(own is None, "Hands: her hands stay out of view" if own is None else
+                            f"Hands: keep the {who}'s hands out of the frame (asked: never in view).", repair=own is not None))
     if r.who not in (r.idea or "").lower() and not re.search(rf"\b{re.escape(who)}\b", desc, re.I):
         checks.append(Check(False, f"POV: call the POV person \"the {who}\".", repair=True))
     return checks

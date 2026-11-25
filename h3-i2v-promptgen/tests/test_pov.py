@@ -137,6 +137,48 @@ class Broken(unittest.TestCase):
         self.assertIn("At 00:01.000, the camera cuts to a first-person POV from the girl's eyes", msg)
 
 
+class NoFalseAlarms(unittest.TestCase):
+    """Things that are right from her eyes must not be flagged (they would trigger a needless repair)."""
+
+    def _outside(self, prompt, req=SNAP):
+        return [m for m in misses(prompt, req) if "from the outside" in m]
+
+    def test_her_hands_hair_and_nod_are_fine(self):
+        for text in ("In the last second the POV shows the girl's hands around the white cup",
+                     "In the last second a strand of the girl's hair falls at the edge of the frame",
+                     "In the last second the girl nods and the POV dips slightly"):
+            with self.subTest(text):
+                ok = GOOD_SNAP.replace("In the last second the POV tilts down with small amplitude at slow speed to the "
+                                       "white cup held in the girl's hands", text)
+                self.assertNotEqual(ok, GOOD_SNAP)
+                self.assertEqual(self._outside(ok), [])
+
+    def test_her_face_or_smile_is_flagged(self):
+        for text in ("In the last second the girl smiles", "In the last second a close-up of the girl",
+                     "In the last second the girl's face lights up"):
+            with self.subTest(text):
+                bad = GOOD_SNAP.replace("In the last second the POV tilts down", text + " and the POV tilts down")
+                self.assertTrue(self._outside(bad))
+
+    def test_never_hands_ignores_other_peoples_hands(self):
+        no_hands = pov.PovRequest(**{**SNAP.__dict__, "hands": "no"})
+        other = GOOD_SNAP.replace("the girl's hands rise from the bottom of the frame and take it with both hands",
+                                  "the girl takes it").replace("held in the girl's hands", "held up by the woman in "
+                                                                                          "her hands")
+        self.assertFalse(any("Hands:" in m for m in misses(other, no_hands)))
+
+    def test_pronoun_is_not_a_label(self):
+        for word in ("her", "She", "", "  "):
+            self.assertEqual(pov.PovRequest(who=word).clamp().who, "girl")
+        self.assertEqual(pov.PovRequest(who="The Woman").clamp().who, "woman")
+        self.assertEqual(pov.PovRequest(who="girl's").clamp().who, "girl")
+
+    def test_positions_belong_to_the_outside_shot(self):
+        msg = pov.build_user_message(pov.PovRequest(**{**SNAP.__dict__}))
+        self.assertIn("In the girl's POV, place people as she sees them", msg)
+        self.assertIn("belong to [Shot 1]", msg)
+
+
 class Installer(unittest.TestCase):
     def test_pov_tab_is_installed_and_enabled(self):
         import importlib.util
