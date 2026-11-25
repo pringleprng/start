@@ -616,25 +616,29 @@ def _request(mode_label, idea, duration, aspect, shots, camera, amplitude, speed
     ).clamp()
 
 
-def _finish(raw_reasoning, raw_answer, req):
+def _finish(raw_reasoning, raw_answer, req, validate=None):
     reasoning, answer = core.split_reasoning(raw_answer)
     reasoning = "\n\n".join(x for x in (raw_reasoning.strip(), reasoning) if x)
     prompt, discarded = core.extract_prompt(answer)
     if discarded and not reasoning:
         reasoning = discarded
     fixed, notes = core.autofix(prompt, req)
-    issues = core.validate(fixed, req)
+    issues = (validate or core.validate)(fixed, req)
     return fixed, notes, issues, reasoning
 
 
-def _pipeline(req, encoded, cfg):
+def _pipeline(req, encoded, cfg, system=None, message=None, validate=None, checks=None):
     """Write the prompt, check it, and let the model fix it once if needed.
+
+    Other tabs (the POV tab) pass their own rules (system), request text (message) and
+    check functions (validate(prompt, req) -> issues, checks(prompt, req) -> checks).
 
     Yields ("progress", label, answer, reasoning) while the model writes, then
     ("done", prompt, notes, issues, checks, thinking) or ("stopped", answer, reasoning).
     """
-    system = core.load_system_prompt()
-    turns = [("user", core.build_user_message(req), len(encoded))]
+    system = system or core.load_system_prompt()
+    checks = checks or core.fidelity
+    turns = [("user", message or core.build_user_message(req), len(encoded))]
     best, best_score = None, None
     for attempt in (1, 2):
         label = "Writing the H3 prompt" if attempt == 1 else "Fixing the prompt (second pass)"
@@ -645,14 +649,14 @@ def _pipeline(req, encoded, cfg):
         if _stop.is_set():
             yield ("stopped", answer, reasoning)
             return
-        fixed, notes, issues, thoughts = _finish(reasoning, answer, req)
-        checks = core.fidelity(fixed, req)
-        score = sum(i.level == "error" for i in issues) + sum(c.repair and not c.ok for c in checks)
+        fixed, notes, issues, thoughts = _finish(reasoning, answer, req, validate)
+        found = checks(fixed, req)
+        score = sum(i.level == "error" for i in issues) + sum(c.repair and not c.ok for c in found)
         if best is None or score < best_score:
-            best, best_score = (fixed, notes, issues, checks, thoughts), score
+            best, best_score = (fixed, notes, issues, found, thoughts), score
         if score == 0 or not cfg["auto_repair"] or attempt == 2:
             break
-        turns = turns + [("assistant", fixed), ("user", core.build_fix_message(issues, checks), 0)]
+        turns = turns + [("assistant", fixed), ("user", core.build_fix_message(issues, found), 0)]
     yield ("done", *best)
 
 

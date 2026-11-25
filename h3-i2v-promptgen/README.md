@@ -105,6 +105,8 @@ Fooocus (SDXL) needs roughly 8 GB of the VRAM while it generates. The setup is m
 | `tools/build_setup_script.py` | Rebuilds `h3-director-setup.sh` after changing the installer or any H3 file |
 | `user_data/extensions/h3_i2v_director/` | The **H3 I2V Director** tab (TextGen extension) |
 | `user_data/extensions/h3_i2v_director/system_prompt.md` | The H3 rules the model follows (edit to taste) |
+| `user_data/extensions/h3_pov_eyes/` | The separate **H3 POV: her eyes** tab (the camera is the girl's eyes) |
+| `user_data/extensions/h3_pov_eyes/pov_system_prompt.md` | The POV rules the model follows in that tab |
 | `user_data/instruction-templates/Inkling 2 - H3 Director.yaml` | Same rules for TextGen's normal **Chat** tab |
 | `user_data/presets/H3 Director.yaml` | Sampling preset (temperature 0.8, top_p 0.95, min_p 0.05) |
 | `tools/build_template.py` | Rebuilds the Chat template after you edit `system_prompt.md` |
@@ -162,13 +164,13 @@ Take both files from the **same** repository.
 ### 4. Install the H3 tab
 
 Copy the contents of this folder's `user_data/` into TextGen's `user_data/` (it only adds new files:
-`extensions/h3_i2v_director`, an instruction template and a preset).
+`extensions/h3_i2v_director`, `extensions/h3_pov_eyes`, an instruction template and a preset).
 
-Turn the tab on: **Session** tab → tick `h3_i2v_director` → *Apply flags/extensions and restart*.
-Or add this line to `user_data/CMD_FLAGS.txt`:
+Turn the tabs on: **Session** tab → tick `h3_i2v_director` and `h3_pov_eyes` → *Apply flags/extensions and
+restart*. Or add this line to `user_data/CMD_FLAGS.txt`:
 
 ```
---extensions h3_i2v_director
+--extensions h3_i2v_director h3_pov_eyes
 ```
 
 Don't put `--model` in `CMD_FLAGS.txt`. A model given there is loaded before the tab can point TextGen at
@@ -286,6 +288,44 @@ it unchanged.
 > over whatever you paste. A prompt already in this format leaves it nothing to guess. If you use the API with
 > **H3-Max**, a third-party guide reports a `prompt_expansion_mode` setting; `disabled` would send the prompt
 > as it is (not confirmed by MiniMax's docs). With a picture, the video takes the picture's aspect ratio.
+
+## H3 POV: her eyes (separate tab)
+
+A second tab for image-to-video where **the camera is the girl's eyes**: the viewer sees exactly what she
+sees, from the height of her eyes. It has its own rules for the model (`pov_system_prompt.md`) and its own
+checks; the model, the GPU settings and the backend settings are shared with the H3 I2V Director tab.
+
+1. **Picture 1**: your first frame.
+2. **What the picture shows**:
+   - *The picture shows her: the camera snaps into her eyes* (default). `[Shot 1]` is your picture; at the
+     **snap time** (0.5, 1, 1.5 or 2 s, default 1 s) the video cuts straight into her eyes and stays there:
+     `[Shot 2] At 00:01.000, the camera cuts to a first-person POV from the girl's eyes, at the girl's eye
+     height, …`. MiniMax's guide allows exactly this: a cut must add new information, such as a new viewpoint,
+     and `POV` (the subject's point of view) is one of its camera motions.
+   - *The picture is already her view: the camera stays at her eyes*. One continuous shot from her eyes from
+     the first frame.
+3. **Whose eyes**: your word for her (default *girl*; *woman* works too). The prompt uses that word every time.
+4. **Your idea**, **Duration** (default 5 s), **Her head** (steady with a small natural sway, looks around
+   slowly, walking, perfectly still) and **Her hands in view** (when she uses them, always, never).
+5. **Generate POV prompt**, then paste it into H3 **with the same picture and duration**.
+
+What the POV rules make the model do:
+
+- The camera sits at **her own eye height** and looks where she looks. If she is shorter than the people
+  around her, it looks up at them and they look down into the lens. People who talk to her look into the lens.
+- **Her face is never shown** after the POV starts (only in a mirror if your idea asks for one). Her hands,
+  sleeves or feet enter from the bottom of the frame when she uses them, in the same clothes as in the picture.
+- Her head movement is written as official H3 camera motion: the POV turns, tilts down to her hands, or moves
+  forward with a gentle walking bob. Small and smooth, no zoom.
+- After the snap she stays the camera until the end, with no cut back. The room, the light and every other
+  person's clothes and props stay as in the picture. Her own lines come from off screen behind the camera, and
+  her breathing and footsteps sound close.
+- All the usual rules apply too: the exact I2VA first line and three fields, your words for people with no
+  ages added, who does what to whom, dialogue word for word.
+
+The checks under the prompt add POV points to the usual format check: the snap at the right time, exactly two
+shots (or one), the POV words at the start of her view, eye height, her face out of view, and hands as you
+asked. **Re-check** works here too, and **🧪 POV self-test** runs three POV ideas with your picture.
 
 ## Using the normal Chat tab instead
 

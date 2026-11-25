@@ -72,10 +72,14 @@ H3_FILES = [
     "user_data/extensions/h3_i2v_director/h3_system.py",
     "user_data/extensions/h3_i2v_director/h3_selftest.py",
     "user_data/extensions/h3_i2v_director/system_prompt.md",
+    "user_data/extensions/h3_pov_eyes/script.py",
+    "user_data/extensions/h3_pov_eyes/pov_core.py",
+    "user_data/extensions/h3_pov_eyes/pov_system_prompt.md",
     "user_data/instruction-templates/Inkling 2 - H3 Director.yaml",
     "user_data/presets/H3 Director.yaml",
 ]
 EXTENSION = "h3_i2v_director"
+EXTENSIONS = (EXTENSION, "h3_pov_eyes")   # the director first: the POV tab uses its model loader
 USER_AGENT = "h3-i2v-director-installer"
 
 # The one-file setup script (h3-director-setup.sh) carries the H3 files here as a base64 tar.gz,
@@ -685,15 +689,17 @@ def update_cmd_flags(user_data: Path) -> None:
             j = i + 1
             while j < len(tokens) and not tokens[j].startswith("-"):
                 j += 1
-            if EXTENSION not in tokens[i + 1:j]:
-                tokens.insert(j, EXTENSION)
+            for name in EXTENSIONS:
+                if name not in tokens[i + 1:j]:
+                    tokens.insert(j, name)
+                    j += 1
             found = True
         if tokens:
             out.append(shlex.join(tokens))
     if not found:
-        out.append(f"--extensions {EXTENSION}")
+        out.append("--extensions " + " ".join(EXTENSIONS))
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
-    say(f"  ✓ {path} enables the H3 tab")
+    say(f"  ✓ {path} enables the H3 tabs (H3 I2V Director, H3 POV: her eyes)")
 
 
 def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str | None,
