@@ -107,6 +107,8 @@ Fooocus (SDXL) needs roughly 8 GB of the VRAM while it generates. The setup is m
 | `user_data/extensions/h3_i2v_director/system_prompt.md` | The H3 rules the model follows (edit to taste) |
 | `user_data/extensions/h3_pov_eyes/` | The separate **H3 POV: her eyes** tab (the camera is the girl's eyes) |
 | `user_data/extensions/h3_pov_eyes/pov_system_prompt.md` | The POV rules the model follows in that tab |
+| `user_data/extensions/fooocus_inpaint/` | The **Fooocus Inpaint** tab (prompts for Fooocus's Inpaint or Outpaint tab) |
+| `user_data/extensions/fooocus_inpaint/fooocus_system_prompt.md` | The rules the model follows in that tab |
 | `user_data/instruction-templates/Inkling 2 - H3 Director.yaml` | Same rules for TextGen's normal **Chat** tab |
 | `user_data/presets/H3 Director.yaml` | Sampling preset (temperature 0.8, top_p 0.95, min_p 0.05) |
 | `tools/build_template.py` | Rebuilds the Chat template after you edit `system_prompt.md` |
@@ -164,13 +166,14 @@ Take both files from the **same** repository.
 ### 4. Install the H3 tab
 
 Copy the contents of this folder's `user_data/` into TextGen's `user_data/` (it only adds new files:
-`extensions/h3_i2v_director`, `extensions/h3_pov_eyes`, an instruction template and a preset).
+`extensions/h3_i2v_director`, `extensions/h3_pov_eyes`, `extensions/fooocus_inpaint`, an instruction
+template and a preset).
 
-Turn the tabs on: **Session** tab → tick `h3_i2v_director` and `h3_pov_eyes` → *Apply flags/extensions and
-restart*. Or add this line to `user_data/CMD_FLAGS.txt`:
+Turn the tabs on: **Session** tab → tick `h3_i2v_director`, `h3_pov_eyes` and `fooocus_inpaint` → *Apply
+flags/extensions and restart*. Or add this line to `user_data/CMD_FLAGS.txt`:
 
 ```
---extensions h3_i2v_director h3_pov_eyes
+--extensions h3_i2v_director h3_pov_eyes fooocus_inpaint
 ```
 
 Don't put `--model` in `CMD_FLAGS.txt`. A model given there is loaded before the tab can point TextGen at
@@ -332,6 +335,38 @@ What the POV rules make the model do:
 The checks under the prompt add POV points to the usual format check: the snap at the right time, exactly two
 shots (or one), the POV words at the start of her view, eye height, her face out of view, and hands as you
 asked. **Re-check** works here too, and **🧪 POV self-test** runs three POV ideas with your picture.
+
+## Fooocus Inpaint (separate tab)
+
+Prompts for Fooocus's **Inpaint or Outpaint** tab. You still draw the mask in Fooocus; this tab writes the text.
+
+1. **Picture**: the image you will inpaint. **Mask** (optional): if you have the mask as a picture (white = the
+   area Fooocus redraws, as in Fooocus's *Mask Upload*), add it and the model sees that area tinted red.
+2. **Method**: the same one you pick in Fooocus, with Fooocus's own names: *Inpaint or Outpaint (default)*,
+   *Improve Detail (face, hand, eyes, etc.)* or *Modify Content (add objects, change background, etc.)*, plus the
+   **Outpaint Direction** for the default method.
+3. **Area you will mask** in your words ("girl shirt", "the sky") and **what should be there**
+   ("change girl shirt to red hoodie", "add muscular woman holding stick").
+4. **Generate Fooocus prompts**, then copy each box into Fooocus: **Prompt** (main prompt box), **Inpaint
+   Additional Prompt** (only shown in Fooocus for Improve Detail and Modify Content) and **Negative Prompt**
+   (Settings tab).
+
+How it follows Fooocus (read from Fooocus 2.5.5's own code):
+
+| Method | Inpaint Additional Prompt | Denoising strength | Respective field | Engine |
+|---|---|---|---|---|
+| Inpaint or Outpaint (default) | not used: the one prompt says what fills the area, then how it matches the picture | 1.0 | 0.618 | v2.6 |
+| Improve Detail | a short phrase for the part and the detail ("detailed girl face, clear eyes") | 0.5 | 0 (only the mask) | None |
+| Modify Content | only the new content of the masked area; ignores what is there now | 1.0 | 0 (only the mask) | v2.6 |
+
+- Fooocus puts the additional prompt first (it becomes the main line, with styles and the Fooocus V2
+  expansion) and treats every line break as a separate prompt, so every box is written as one line.
+- The tab shows these settings in a table for the method you chose (Fooocus sets them by itself; they are under
+  Advanced → Developer Debug Mode → Inpaint if you want to check).
+- Checks: three one-line boxes; the additional prompt filled in only where Fooocus uses it; nothing you asked for
+  in the negative prompt ("grey sky" next to a wanted blue sky is fine, "blue sky" is not); your words for people
+  ("muscular woman", "girl"), no ages, never "the younger woman". A problem gets one repair pass.
+- **Re-check** works on boxes you edited, and **🧪 Self-test** runs one idea per method with your picture.
 
 ## Using the normal Chat tab instead
 

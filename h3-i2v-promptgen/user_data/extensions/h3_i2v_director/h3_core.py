@@ -242,7 +242,9 @@ _NOT_ADJ = set("""the a an one another her his their its this that these those m
 either neither no not and or but then than so too very also just only now again same from with without by for at
 on in into onto to of off over under near next behind beside besides between around toward towards about after
 before while as like when where who which what he she they it him them we us i you is are was were be been
-up down out back away""".split())
+up down out back away
+change make let keep add remove replace fix turn put swap edit see watch have get set move paint draw color colour
+inpaint outpaint extend erase delete show give""".split())   # command words at the start: "change girl shirt to red"
 _PARTICLE = r"(?:(?:up|down|over|out|back|away)\s+)?"   # "picks up girl", "hands over the stick"
 _PRONOUNS = {"he", "she", "they", "it", "who", "i", "we", "you"}
 
@@ -313,6 +315,13 @@ def parse_people(idea: str) -> list[Person]:
     for m in re.finditer(rf"\b(?:(a|an|one|another|two|both|three|four|five|six)\s+)?(?:(\w+)\s+)?{_PERSON_RE}\b", text):
         number, adj, word = m.group(1), m.group(2), m.group(3)
         cls = _WORD_TO_CLASS[word]
+        if word in _PLURALS and not number:
+            # "muscular women hands girl a stick": a singular verb right after says it is one woman
+            nxt = re.match(r"\s+([a-z']+)", text[m.end():])
+            verb = nxt.group(1) if nxt else ""
+            if verb in ("is", "was", "has", "does") or (verb.endswith("s") and not verb.endswith("ss")
+                                                         and verb not in _WORD_TO_CLASS and _verb_key(verb)):
+                word = PEOPLE[cls][0]
         if adj and not _describes(adj, text[:m.start(2)]):
             adj = None  # "a baby girl" is one girl; "the woman hands girl": "hands" is a verb
         if adj and _right_after_person(text[:m.start(2)]) and not re.search(

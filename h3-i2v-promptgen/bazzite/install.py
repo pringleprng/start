@@ -75,11 +75,14 @@ H3_FILES = [
     "user_data/extensions/h3_pov_eyes/script.py",
     "user_data/extensions/h3_pov_eyes/pov_core.py",
     "user_data/extensions/h3_pov_eyes/pov_system_prompt.md",
+    "user_data/extensions/fooocus_inpaint/script.py",
+    "user_data/extensions/fooocus_inpaint/fooocus_core.py",
+    "user_data/extensions/fooocus_inpaint/fooocus_system_prompt.md",
     "user_data/instruction-templates/Inkling 2 - H3 Director.yaml",
     "user_data/presets/H3 Director.yaml",
 ]
 EXTENSION = "h3_i2v_director"
-EXTENSIONS = (EXTENSION, "h3_pov_eyes")   # the director first: the POV tab uses its model loader
+EXTENSIONS = (EXTENSION, "h3_pov_eyes", "fooocus_inpaint")   # the director first: the other tabs use its model loader
 USER_AGENT = "h3-i2v-director-installer"
 
 # The one-file setup script (h3-director-setup.sh) carries the H3 files here as a base64 tar.gz,
@@ -652,7 +655,7 @@ def _embedded_files() -> dict[str, bytes]:
 
 
 def install_h3_files(user_data: Path, source_repo: str, branch: str) -> None:
-    step("H3 tabs: H3 I2V Director and H3 POV: her eyes")
+    step("Tabs: H3 I2V Director, H3 POV: her eyes, Fooocus Inpaint")
     # run from a pipe (curl … | bash) there is no __file__
     local_root = Path(__file__).resolve().parent.parent if "__file__" in globals() else None
     embedded = _embedded_files() if EMBEDDED_FILES else {}
@@ -702,7 +705,7 @@ def update_cmd_flags(user_data: Path) -> None:
     if not found:
         out.append("--extensions " + " ".join(EXTENSIONS))
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
-    say(f"  ✓ {path} enables the H3 tabs (H3 I2V Director, H3 POV: her eyes)")
+    say(f"  ✓ {path} enables the tabs (H3 I2V Director, H3 POV: her eyes, Fooocus Inpaint)")
 
 
 def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str | None,

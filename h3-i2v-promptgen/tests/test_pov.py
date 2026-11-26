@@ -188,7 +188,7 @@ class Installer(unittest.TestCase):
         spec.loader.exec_module(inst)
         for f in ("script.py", "pov_core.py", "pov_system_prompt.md"):
             self.assertIn(f"user_data/extensions/h3_pov_eyes/{f}", inst.H3_FILES)
-        self.assertEqual(inst.EXTENSIONS, ("h3_i2v_director", "h3_pov_eyes"))
+        self.assertEqual(inst.EXTENSIONS, ("h3_i2v_director", "h3_pov_eyes", "fooocus_inpaint"))
 
 
 if __name__ == "__main__":

@@ -254,17 +254,17 @@ class CmdFlags(unittest.TestCase):
         return [ln for ln in (d / "CMD_FLAGS.txt").read_text().splitlines() if ln and not ln.startswith("#")]
 
     def test_adds_extension(self):
-        self.assertEqual(self._run("# comment\n"), ["--extensions h3_i2v_director h3_pov_eyes"])
+        self.assertEqual(self._run("# comment\n"), ["--extensions h3_i2v_director h3_pov_eyes fooocus_inpaint"])
 
     def test_extends_existing_list_and_drops_model(self):
         out = self._run("--listen --extensions gallery --api\n--model Foo.gguf --ctx-size 8192\n")
-        self.assertEqual(out, ["--listen --extensions gallery h3_i2v_director h3_pov_eyes --api", "--ctx-size 8192"])
+        self.assertEqual(out, ["--listen --extensions gallery h3_i2v_director h3_pov_eyes fooocus_inpaint --api", "--ctx-size 8192"])
 
     def test_idempotent(self):
         once = self._run("--extensions h3_i2v_director\n")
-        self.assertEqual(once, ["--extensions h3_i2v_director h3_pov_eyes"])
-        self.assertEqual(self._run("--extensions h3_i2v_director h3_pov_eyes\n"),
-                         ["--extensions h3_i2v_director h3_pov_eyes"])
+        self.assertEqual(once, ["--extensions h3_i2v_director h3_pov_eyes fooocus_inpaint"])
+        self.assertEqual(self._run("--extensions h3_i2v_director h3_pov_eyes fooocus_inpaint\n"),
+                         ["--extensions h3_i2v_director h3_pov_eyes fooocus_inpaint"])
 
 
 if __name__ == "__main__":
