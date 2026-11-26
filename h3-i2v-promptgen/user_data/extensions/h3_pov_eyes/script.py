@@ -116,6 +116,10 @@ def _save(prompt, preq):
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     path = folder / f"{stamp}_POV-{preq.mode}_{preq.duration}s.txt"
+    n = 2
+    while path.exists() or path.with_suffix(".json").exists():   # two prompts in the same second: keep both
+        path = path.with_name(f"{path.stem.split('~')[0]}~{n}.txt")
+        n += 1
     path.write_text(prompt + "\n", encoding="utf-8")
     meta = {k: getattr(preq, k) for k in ("mode", "who", "snap_at", "idea", "duration", "head", "hands", "dialogue",
                                           "music", "music_text", "silent", "style")}

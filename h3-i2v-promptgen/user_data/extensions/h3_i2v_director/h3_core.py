@@ -232,11 +232,18 @@ VERB_GROUPS = {
     "take": ("take", "grab", "receive", "accept", "get", "snatch"),
 }
 _DET = r"(?:the|a|an|one|another|her|his|their|its|this|that)"
+_VERB_ALIAS = {}   # "pick" -> "lift", "grab" -> "take", "embrace" -> "hug" ...
+for _key, _words in VERB_GROUPS.items():
+    for _w in _words:
+        if _w not in VERB_GROUPS:
+            _VERB_ALIAS.setdefault(_w, _key)
 # never a description of the person that follows ("next to girl", "and the girl", "hands girl")
 _NOT_ADJ = set("""the a an one another her his their its this that these those my your our some other each every both
 either neither no not and or but then than so too very also just only now again same from with without by for at
 on in into onto to of off over under near next behind beside besides between around toward towards about after
-before while as like when where who which what he she they it him them we us i you is are was were be been""".split())
+before while as like when where who which what he she they it him them we us i you is are was were be been
+up down out back away""".split())
+_PARTICLE = r"(?:(?:up|down|over|out|back|away)\s+)?"   # "picks up girl", "hands over the stick"
 _PRONOUNS = {"he", "she", "they", "it", "who", "i", "we", "you"}
 
 
@@ -247,7 +254,15 @@ def _describes(word, before: str = "") -> bool:
         return False
     m = re.search(r"([a-z']+)\s*$", before.lower())   # the word right before, with no comma or stop between
     prev = m.group(1) if m else ""
-    return prev.removesuffix("'s") not in _WORD_TO_CLASS and prev not in _PRONOUNS
+    return not _right_after_person(before) or re.search(r"(?:[^su]s|ed|ing)$", word) is None
+
+
+def _right_after_person(before: str) -> bool:
+    """Does a person word (or he/she/they) come right before, with no comma in between? Then the next word is
+    probably what that person does or holds ("woman hands girl", "hands girl stick girl ...")."""
+    m = re.search(r"([a-z']+)\s*$", before.lower())
+    prev = m.group(1) if m else ""
+    return prev.removesuffix("'s") in _WORD_TO_CLASS or prev in _PRONOUNS
 
 
 @dataclass
@@ -279,6 +294,9 @@ def _verb_key(word: str) -> str:
     for c in candidates:
         if c in VERB_GROUPS:
             return c
+    for c in candidates:
+        if c in _VERB_ALIAS:
+            return _VERB_ALIAS[c]
     return ""
 
 
@@ -297,6 +315,10 @@ def parse_people(idea: str) -> list[Person]:
         cls = _WORD_TO_CLASS[word]
         if adj and not _describes(adj, text[:m.start(2)]):
             adj = None  # "a baby girl" is one girl; "the woman hands girl": "hands" is a verb
+        if adj and _right_after_person(text[:m.start(2)]) and not re.search(
+                rf"(?<![a-z'])(?<!{PEOPLE[cls][0]} )(?<!{PEOPLE[cls][1]} ){re.escape(adj)}\s+(?:{PEOPLE[cls][0]}|{PEOPLE[cls][1]})\b",
+                text[:m.start(2)] + " " + text[m.end():]):
+            adj = None  # "hands girl stick girl takes": "stick" is what she is handed, not "the stick girl"
         first_seen.setdefault(cls, m.start())
         plural = word in _PLURALS
         mentions.setdefault(cls, []).append((plural, number, adj))
@@ -345,21 +367,25 @@ def parse_actions(idea: str) -> list[Action]:
     start = rf"(?:\b{_DET}\s+|(?<![\w']))"   # "the woman hands ..." or, written quickly, "woman hands ..."
     det = rf"(?:{_DET}\s+)?"
     patterns = (
-        (rf"{start}{person}\s+(\w+)\s+{det}{person}(?!\w)", False),                          # X hands the girl ...
-        (rf"{start}{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?(?:to|for|at)\s+{det}{person}(?!\w)", False),  # X pours tea for Y
-        (rf"{start}{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?from\s+{det}{person}(?!\w)", True),    # X takes the stick from Y
+        (rf"{start}{person}\s+(\w+)\s+{_PARTICLE}{det}{person}(?!\w)", "direct"),          # X hands the girl ...
+        (rf"{start}{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?(?:to|for|at)\s+{det}{person}(?!\w)", "to"),  # X pours tea for Y
+        (rf"{start}{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?from\s+{det}{person}(?!\w)", "from"),  # X takes the stick from Y
     )
     actions = []
-    for pat, from_ in patterns:
-        for m in re.finditer(pat, text):
+    for pat, kind in patterns:
+        rx, pos = re.compile(pat), 0
+        while (m := rx.search(text, pos)) is not None:
+            pos = m.start() + 1   # overlapping: "girl the woman hands the girl" must still find "the woman hands"
             a_adj, a_word, verb, r_adj, r_word = m.groups()
             key = _verb_key(verb)
             if not key or a_word not in _WORD_TO_CLASS or r_word not in _WORD_TO_CLASS:
                 continue
-            if from_ != (key == "take"):
-                continue   # "from" only for taking; taking only with "from" (else who gives is unclear)
-            a_adj = a_adj if _describes(a_adj or "", text[:m.start(1)] if a_adj else "") else ""
-            r_adj = r_adj if _describes(r_adj or "", text[:m.start(4)] if r_adj else "") else ""
+            if (kind == "from") != (key == "take") and kind != "direct":
+                continue   # "from" only for taking ("takes the stick from"); "takes ... to" says nothing about who gives
+            from_ = kind == "from"
+            known = {p.cls: p.adjectives for p in parse_people(idea)}
+            a_adj = a_adj if a_adj and a_adj in known.get(_WORD_TO_CLASS[a_word], []) else ""
+            r_adj = r_adj if r_adj and r_adj in known.get(_WORD_TO_CLASS[r_word], []) else ""
             end = re.search(r"[,.;!?]|\band then\b|\bthen\b|\bwhile\b|\band (?:the |a )?(?:" + _PERSON_RE[1:-6] + r")\b",
                             text[m.end():])
             clause = text[m.start(): m.end() + (end.start() if end else len(text) - m.end())].strip()
@@ -1315,7 +1341,9 @@ def people_checks(desc: str, idea: str) -> list[Check]:
                 actor_pos = [m.start() for m in re.finditer(rf"\b(?:{actor_tok})\b", sl)]
                 recv_pos = [m.start() for m in re.finditer(rf"\b(?:{recv_tok})\b", sl)]
                 actor_before = any(x < v for x in actor_pos)
-                recv_after = any(x > v for x in recv_pos) or re.search(r"\b(?:her|him|them)\b", sl[v:]) is not None
+                # "lifts her", "hands her the cup": a pronoun right after the verb is the one receiving it
+                recv_after = any(x > v for x in recv_pos) or re.match(
+                    r"\s+(?:(?:up|over|down|out|back)\s+)?(?:her|him|them)\b", sl[vm.end():]) is not None
                 if actor_before and recv_after:
                     ok = True
                 elif not actor_before and any(x > v for x in actor_pos) and any(x < v for x in recv_pos):
