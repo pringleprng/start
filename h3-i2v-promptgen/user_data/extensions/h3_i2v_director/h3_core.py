@@ -229,8 +229,25 @@ VERB_GROUPS = {
     "follow": ("follow",), "teach": ("teach",), "show": ("show",), "hold": ("hold",), "throw": ("throw", "toss"),
     "kick": ("kick",), "hit": ("hit", "strike"), "comfort": ("comfort",), "dress": ("dress",), "brush": ("brush",),
     "tickle": ("tickle",), "lead": ("lead", "guide"), "catch": ("catch",), "wake": ("wake",), "tuck": ("tuck",),
+    "take": ("take", "grab", "receive", "accept", "get", "snatch"),
 }
 _DET = r"(?:the|a|an|one|another|her|his|their|its|this|that)"
+# never a description of the person that follows ("next to girl", "and the girl", "hands girl")
+_NOT_ADJ = set("""the a an one another her his their its this that these those my your our some other each every both
+either neither no not and or but then than so too very also just only now again same from with without by for at
+on in into onto to of off over under near next behind beside besides between around toward towards about after
+before while as like when where who which what he she they it him them we us i you is are was were be been""".split())
+_PRONOUNS = {"he", "she", "they", "it", "who", "i", "we", "you"}
+
+
+def _describes(word, before: str = "") -> bool:
+    """Is word (in front of a person noun) a description of that person, like "muscular" or "older"?
+    Not if it is a small word or a verb: "the woman hands girl" -> "hands" is what the woman does."""
+    if not word or word in _NOT_ADJ or word in _NUMBERS or word in _WORD_TO_CLASS or _verb_key(word):
+        return False
+    m = re.search(r"([a-z']+)\s*$", before.lower())   # the word right before, with no comma or stop between
+    prev = m.group(1) if m else ""
+    return prev.removesuffix("'s") not in _WORD_TO_CLASS and prev not in _PRONOUNS
 
 
 @dataclass
@@ -238,6 +255,7 @@ class Person:
     cls: str
     count: int
     adjectives: list = field(default_factory=list)
+    read_as_one: str = ""   # "muscular women" that the rest of the idea shows is one person
 
 
 @dataclass
@@ -248,6 +266,7 @@ class Action:
     actor_adj: str = ""
     receiver_adj: str = ""
     text: str = ""
+    taken_from: bool = False   # "the girl takes the stick from the woman": the actor takes, the receiver gives
 
 
 def _verb_key(word: str) -> str:
@@ -272,16 +291,18 @@ def parse_people(idea: str) -> list[Person]:
     adjs: dict[str, list] = {}
     indefinite: dict[str, int] = {}
     first_seen: dict[str, int] = {}
+    mentions: dict[str, list] = {}   # cls -> [(plural, number word, description)]
     for m in re.finditer(rf"\b(?:(a|an|one|another|two|both|three|four|five|six)\s+)?(?:(\w+)\s+)?{_PERSON_RE}\b", text):
         number, adj, word = m.group(1), m.group(2), m.group(3)
         cls = _WORD_TO_CLASS[word]
-        if adj and adj in _WORD_TO_CLASS:
-            adj = None  # "a baby girl" is one girl
+        if adj and not _describes(adj, text[:m.start(2)]):
+            adj = None  # "a baby girl" is one girl; "the woman hands girl": "hands" is a verb
         first_seen.setdefault(cls, m.start())
         plural = word in _PLURALS
-        if adj and adj not in ("the", "a", "an", "her", "his", "their", "its", "and", "with", "to", "of", "next"):
+        mentions.setdefault(cls, []).append((plural, number, adj))
+        if adj:
             adjs.setdefault(cls, [])
-            if adj not in adjs[cls] and adj not in _NUMBERS:
+            if adj not in adjs[cls]:
                 adjs[cls].append(adj)
         if number:
             n = _NUMBERS[number]
@@ -294,8 +315,25 @@ def parse_people(idea: str) -> list[Person]:
             counts[cls] = max(counts.get(cls, 0), 2 if plural else 1)
     for cls, n in indefinite.items():
         counts[cls] = max(counts.get(cls, 0), n)
+    # "muscular women standing next to girl, muscular woman hands girl a stick": a plural without a number
+    # whose description the idea also uses for a single person is a slip for that one person
+    read_as_one = {}
+    for cls, ms in mentions.items():
+        plurals = [x for x in ms if x[0]]
+        singles = [x for x in ms if not x[0]]
+        single_adjs = {a for _, _, a in singles if a}
+        # "the older woman ... the younger woman": different descriptions of one kind are different people
+        if len(single_adjs) >= 2:
+            counts[cls] = max(counts.get(cls, 0), len(single_adjs))
+            continue
+        if plurals and singles and not any(n for _, n, _ in plurals) and not any(
+                n and _NUMBERS.get(n, 1) > 1 for _, n, _ in singles):
+            if all(a and a in single_adjs for _, _, a in plurals):
+                counts[cls] = 1
+                read_as_one[cls] = f"{plurals[0][2]} {PEOPLE[cls][1]}"
     order = sorted(counts, key=lambda c: first_seen.get(c, 0))
-    return [Person(cls, counts[cls], adjs.get(cls, [])) for cls in order]
+    return [Person(cls, counts[cls], adjs.get(cls, [])[:2] if counts[cls] == 1 else adjs.get(cls, []),
+                   read_as_one.get(cls, "")) for cls in order]
 
 
 def parse_actions(idea: str) -> list[Action]:
@@ -304,22 +342,28 @@ def parse_actions(idea: str) -> list[Action]:
     if not text.isascii():
         return []
     person = rf"(?:(\w+)\s+)?{_PERSON_RE}"
+    start = rf"(?:\b{_DET}\s+|(?<![\w']))"   # "the woman hands ..." or, written quickly, "woman hands ..."
+    det = rf"(?:{_DET}\s+)?"
     patterns = (
-        rf"\b{_DET}\s+{person}\s+(\w+)\s+(?:{_DET}\s+)?{person}\b",                       # X hands the girl ...
-        rf"\b{_DET}\s+{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?(?:to|for|at)\s+{_DET}\s+{person}\b",  # X pours tea for Y
+        (rf"{start}{person}\s+(\w+)\s+{det}{person}(?!\w)", False),                          # X hands the girl ...
+        (rf"{start}{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?(?:to|for|at)\s+{det}{person}(?!\w)", False),  # X pours tea for Y
+        (rf"{start}{person}\s+(\w+)\s+(?:\w+\s+){{0,4}}?from\s+{det}{person}(?!\w)", True),    # X takes the stick from Y
     )
     actions = []
-    for pat in patterns:
+    for pat, from_ in patterns:
         for m in re.finditer(pat, text):
             a_adj, a_word, verb, r_adj, r_word = m.groups()
             key = _verb_key(verb)
             if not key or a_word not in _WORD_TO_CLASS or r_word not in _WORD_TO_CLASS:
                 continue
-            a_adj = "" if (a_adj or "") in _NUMBERS or a_adj in ("the",) else (a_adj or "")
-            r_adj = "" if (r_adj or "") in _NUMBERS else (r_adj or "")
-            end = re.search(r"[,.;!?]|\band then\b|\bthen\b|\bwhile\b", text[m.end():])
+            if from_ != (key == "take"):
+                continue   # "from" only for taking; taking only with "from" (else who gives is unclear)
+            a_adj = a_adj if _describes(a_adj or "", text[:m.start(1)] if a_adj else "") else ""
+            r_adj = r_adj if _describes(r_adj or "", text[:m.start(4)] if r_adj else "") else ""
+            end = re.search(r"[,.;!?]|\band then\b|\bthen\b|\bwhile\b|\band (?:the |a )?(?:" + _PERSON_RE[1:-6] + r")\b",
+                            text[m.end():])
             clause = text[m.start(): m.end() + (end.start() if end else len(text) - m.end())].strip()
-            act = Action(_WORD_TO_CLASS[a_word], key, _WORD_TO_CLASS[r_word], a_adj, r_adj, clause)
+            act = Action(_WORD_TO_CLASS[a_word], key, _WORD_TO_CLASS[r_word], a_adj, r_adj, clause, from_)
             if not any(x.actor == act.actor and x.verb == act.verb and x.receiver == act.receiver for x in actions):
                 actions.append(act)
     return actions
@@ -341,7 +385,7 @@ def people_requirements(idea: str) -> list[str]:
     lines = [f"- People: exactly {' and '.join(parts)}. No more, no fewer, and never merge two people into one. "
              f"Use the words {words} for them every time, never another word for the same person, and add no ages "
              "or age words (adult, child, young, little, \"of about eight\")."]
-    labels = [f'"the {PEOPLE[p.cls][0]}"' for p in people if p.count == 1]
+    labels = [f'"the {" ".join(p.adjectives + [PEOPLE[p.cls][0]])}"' for p in people if p.count == 1]
     total = sum(p.count for p in people)
     if labels and total > 1:
         lines.append(f"- Call them {' and '.join(labels)} every time; name the person at the start of every action "
@@ -350,6 +394,14 @@ def people_requirements(idea: str) -> list[str]:
     elif labels:
         lines.append(f"- Call this person {labels[0]} every time.")
     for p in people:
+        if p.read_as_one:
+            sing = PEOPLE[p.cls][0]
+            lines.append(f"- \"{p.read_as_one}\" in the idea means this one person: "
+                         f"the {' '.join(p.adjectives + [sing])}. Show one {sing}, not several.")
+        if p.count == 1 and p.adjectives:
+            sing = PEOPLE[p.cls][0]
+            lines.append(f"- Show the {sing} clearly as {' and '.join(p.adjectives)}, as the user wrote, and keep it "
+                         "the same all the way.")
         if p.count > 1:
             sing = PEOPLE[p.cls][0]
             if len(p.adjectives) >= p.count:
@@ -362,9 +414,10 @@ def people_requirements(idea: str) -> list[str]:
                              f"in the red coat\" and \"the {sing} in the white blouse\". Never call one of them just "
                              f"\"the {sing}\".")
     for a in parse_actions(idea):
-        lines.append(f"- Action, keep the direction exactly: {a.text.strip()} "
-                     f"(the {(a.actor_adj + ' ') if a.actor_adj else ''}{a.actor} does it, the "
-                     f"{(a.receiver_adj + ' ') if a.receiver_adj else ''}{a.receiver} receives it).")
+        actor = f"the {(a.actor_adj + ' ') if a.actor_adj else ''}{a.actor}"
+        receiver = f"the {(a.receiver_adj + ' ') if a.receiver_adj else ''}{a.receiver}"
+        how = (f"{actor} takes it from {receiver}" if a.taken_from else f"{actor} does it, {receiver} receives it")
+        lines.append(f"- Action, keep the direction exactly: {a.text.strip()} ({how}).")
     return lines
 
 
@@ -973,8 +1026,12 @@ class Check:
     repair: bool = False   # worth asking the model to fix
 
 
+_IRREGULAR_NOUNS = {"women": "woman", "men": "man", "children": "child", "people": "person"}
+
+
 def _stem(word: str) -> str:
-    word = word.lower()
+    word = word.lower().removesuffix("'s")
+    word = _IRREGULAR_NOUNS.get(word, word)
     for suffix in ("ing", "ies", "es", "ed", "s"):
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
             return word[: -len(suffix)]
@@ -988,7 +1045,8 @@ def idea_keywords(idea: str) -> list[str]:
     words = re.findall(r"[A-Za-z][A-Za-z'-]{1,}", idea)
     out = []
     for w in words:
-        lw = w.lower().strip("'")
+        lw = w.lower().strip("'").removesuffix("'s")
+        lw = _IRREGULAR_NOUNS.get(lw, lw)
         if lw in STOPWORDS or len(lw) < 3 or lw in out:
             continue
         out.append(lw)
@@ -1081,7 +1139,7 @@ def fidelity(prompt: str, req: Request) -> list[Check]:
     return checks
 
 
-_IRREGULAR = {"give": "gave|given", "hold": "held", "throw": "threw|thrown", "lead": "led", "catch": "caught",
+_IRREGULAR = {"give": "gave|given", "take": "took|taken", "get": "got|gotten", "hold": "held", "throw": "threw|thrown", "lead": "led", "catch": "caught",
               "feed": "fed", "teach": "taught", "show": "shown", "wake": "woke|woken", "strike": "struck",
               "hit": "hit", "pick": "picked"}
 
@@ -1098,6 +1156,19 @@ def _verb_regex(verbs) -> str:
         if v in _IRREGULAR:
             forms.append(_IRREGULAR[v])
     return r"\b(?:" + "|".join(forms) + r")\b"
+
+
+_HAND_NOUN_BEFORE = set("""her his their its my your our the a an both one two each either empty right left free open
+other own outstretched raised small big large bare gloved""".split())
+
+
+def _is_body_part(sentence: str, match) -> bool:
+    """True when a match of the verb "hand" is the noun: "her hand", "the woman's right hand"."""
+    word = match.group(0)
+    if not word.startswith("hand") or word.startswith(("handed", "handing")):
+        return False
+    prev = re.search(r"([a-z']+)\s*$", sentence[:match.start()])
+    return bool(prev) and (prev.group(1) in _HAND_NOUN_BEFORE or prev.group(1).endswith("'s"))
 
 
 def _sentences_of(desc: str) -> list[str]:
@@ -1123,6 +1194,16 @@ def people_checks(desc: str, idea: str) -> list[Check]:
             checks.append(Check(False, f"People: the {sing} is missing (keep the word \"{sing}\").", repair=True))
         else:
             checks.append(Check(True, f"People: {what}"))
+        if present and p.count == 1:
+            stems = _stem_text(low)
+            missing = [a for a in p.adjectives if _stem(a) not in stems]
+            label = " ".join(p.adjectives + [sing])
+            if p.adjectives:
+                checks.append(Check(not missing, f"People: the {label}, in your words" if not missing else
+                                    f"People: show the {sing} as {' and '.join(missing)}, as you wrote "
+                                    f"(call her \"the {label}\")." if p.cls in FEMALE_CLASSES else
+                                    f"People: show the {sing} as {' and '.join(missing)}, as you wrote "
+                                    f"(call them \"the {label}\").", repair=bool(missing)))
 
     # other words for the same people, or extra people
     idea_low = (idea or "").lower()
@@ -1222,9 +1303,13 @@ def people_checks(desc: str, idea: str) -> list[Check]:
             recv_tok = "|".join((PEOPLE[a.receiver][0], *PEOPLE[a.receiver][2]))
         verb_re = _verb_regex(VERB_GROUPS[a.verb])
         ok = reversed_ = seen = False
-        for sent in sentences:
+        # judge each part of "X does this, and Y does that" on its own
+        clauses = [c for sent in sentences for c in re.split(r",\s+(?:and|while|then|as)\s+|;\s+|\s+and then\s+", sent)]
+        for sent in clauses:
             sl = sent.lower()
             for vm in re.finditer(verb_re, sl):
+                if _is_body_part(sl, vm):
+                    continue   # "her empty hand", "with both hands": a hand, not handing
                 seen = True
                 v = vm.start()
                 actor_pos = [m.start() for m in re.finditer(rf"\b(?:{actor_tok})\b", sl)]
