@@ -251,8 +251,8 @@ def recheck(prompt, additional, negative, method_label, outpaint, area, idea, st
 
 SELFTEST = [
     # ideas that fit most pictures, so the tests check the Fooocus mechanics, not the picture
-    ("body-keywords", "Auto: \"pregnant belly, pale skin\" word for word, Inpaint or Outpaint, ADDITIONAL empty",
-     dict(method="auto", area="her stomach", idea="pregnant belly, pale skin")),
+    ("keywords", "Auto: \"long wavy hair, auburn\" word for word, Inpaint or Outpaint, ADDITIONAL empty",
+     dict(method="auto", area="the hair", idea="long wavy hair, auburn")),
     ("detail-face", "Improve Detail: a short detail phrase in ADDITIONAL",
      dict(method="detail", area="the face", idea="sharper face with clear eyes")),
     ("modify-bench", "Modify Content: only the new object in ADDITIONAL, nothing wanted in NEGATIVE",
@@ -301,7 +301,7 @@ def ui():
     gr.Markdown(
         "### Fooocus Inpaint\n"
         "Inpainting prompts for Fooocus. Add the picture, say in a few words what the masked area should become "
-        "(e.g. *pregnant belly, pale skin*) and press **Generate**: you get the Fooocus boxes, the method and its "
+        "(e.g. *red leather jacket, silver zipper*) and press **Generate**: you get the Fooocus boxes, the method and its "
         "settings, and tips for the mask. Model and settings are shared with the *H3 I2V Director* tab."
     )
     status_model = gr.Markdown(e.model_status())
@@ -317,9 +317,9 @@ def ui():
                 mask = gr.Image(type="pil", label="Mask (optional; white = the area Fooocus redraws)",
                                 sources=["upload", "clipboard"], height=280)
             idea = gr.Textbox(label="What the masked area should become (your words)", lines=3,
-                              placeholder="e.g. pregnant belly, pale skin / red hoodie / add muscular woman holding stick")
+                              placeholder="e.g. red leather jacket / long wavy hair, auburn / detailed hands / add a cat on the sofa")
             area = gr.Textbox(label="Area you will mask (optional; the model can tell from the picture and your words)",
-                              max_lines=1, placeholder="e.g. her stomach, girl shirt, the face, the sky")
+                              max_lines=1, placeholder="e.g. her jacket, girl shirt, the face, the sky")
             method = gr.Radio([fc.AUTO] + list(fc.METHODS.values()), value=fc.AUTO,
                               label="Method (pick the same one in Fooocus; Auto shows which and why)")
             with gr.Accordion("Outpaint instead (extend the picture past its edges)", open=False):

@@ -21,7 +21,7 @@ REQS = {
     2: fc.InpaintRequest(idea="fix the girl's face", area="the girl's face", method="detail", n_images=1),
     3: fc.InpaintRequest(idea="add muscular woman holding stick", area="the grass on the right", method="modify", n_images=1),
     4: fc.InpaintRequest(idea="make it wider, more beach and sea", method="default", outpaint=["Left", "Right"], n_images=1),
-    5: fc.InpaintRequest(idea="pregnant belly, pale skin", area="her stomach", method="auto", n_images=1),
+    5: fc.InpaintRequest(idea="long wavy hair, auburn", area="his hair", method="auto", n_images=1),
 }
 
 
@@ -75,7 +75,6 @@ class Examples(unittest.TestCase):
     def test_rules(self):
         self.assertNotIn("{", SYSTEM)
         self.assertIn("Fooocus splits a prompt at every line break", SYSTEM)
-        self.assertIn("sexual, nude, underwear or pregnancy content for a girl, boy or child", SYSTEM)
         for word in ("older, younger", '"younger woman"'):
             self.assertIn(word, SYSTEM)
 
@@ -182,16 +181,17 @@ class InpaintFocus(unittest.TestCase):
         self.assertEqual(fc.InpaintRequest(idea="add a bench", method="detail").clamp().auto_reason, "")
 
     def test_keywords_word_for_word(self):
-        self.assertEqual(fc.required_phrases("pregnant belly, pale skin"), ["pregnant belly", "pale skin"])
+        self.assertEqual(fc.required_phrases("long wavy hair, auburn"), ["long wavy hair", "auburn"])
+        self.assertEqual(fc.required_phrases("red leather jacket, silver zipper"), ["red leather jacket", "silver zipper"])
         self.assertEqual(fc.required_phrases("detailed hands"), ["detailed hands"])
         self.assertEqual(fc.required_phrases("change girl shirt to red hoodie"), [])
         msg = fc.build_user_message(REQS[5])
-        self.assertIn('word for word near the start of PROMPT: "pregnant belly", "pale skin"', msg)
+        self.assertIn('word for word near the start of PROMPT: "long wavy hair", "auburn"', msg)
         self.assertIn('plain words "woman" or "man" for adults', msg)
-        bad_negative = "PROMPT: a girl with a rounded stomach, fair skin, photo\nADDITIONAL: N/A\nNEGATIVE: pregnant belly, blurry"
-        self.assertTrue(any("NEGATIVE contains what you asked for: pregnant belly" in m for m in misses(bad_negative, REQS[5])))
-        swapped = example(5).replace("pregnant belly", "rounded stomach").replace("pale skin", "fair skin")
-        self.assertTrue(any('Your words missing word for word: "pregnant belly", "pale skin"' in m
+        bad_negative = "PROMPT: a man with curly hair, red, photo\nADDITIONAL: N/A\nNEGATIVE: long wavy hair, blurry"
+        self.assertTrue(any("NEGATIVE contains what you asked for: long wavy hair" in m for m in misses(bad_negative, REQS[5])))
+        swapped = example(5).replace("long wavy hair", "long curly hair").replace("auburn", "reddish")
+        self.assertTrue(any('Your words missing word for word: "long wavy hair", "auburn"' in m
                             for m in misses(swapped, REQS[5])))
 
     def test_body_edit_tips(self):
@@ -200,6 +200,7 @@ class InpaintFocus(unittest.TestCase):
         self.assertIn("mask a little beyond where the new shape will reach", md)
         self.assertIn("switch the method to Modify Content", md)
         self.assertNotIn("beyond where", fc.settings_markdown(fc.InpaintRequest(idea="detailed hands", method="auto")))
+        self.assertIn("beyond where", fc.settings_markdown(fc.InpaintRequest(idea="pregnant belly, pale skin", method="auto")))
 
     def test_only_one_line_is_kept(self):
         """Everything is written as asked, except sexual, nude, underwear or pregnancy edits for a girl, boy or child."""
@@ -218,11 +219,11 @@ class InpaintFocus(unittest.TestCase):
 
     def test_what_the_model_wrote(self):
         self.assertTrue(fc.blocked_output({"prompt": "a girl with a pregnant belly, pale skin", "additional": ""}))
-        self.assertFalse(fc.blocked_output({"prompt": example(5).split("\n")[0], "additional": ""}))
+        self.assertFalse(fc.blocked_output({"prompt": "a woman with a pregnant belly, pale skin, photo", "additional": ""}))
         self.assertFalse(fc.blocked_output({"prompt": "a girl with muscular arms, photo", "additional": ""}))
         # an unnamed person in a pregnancy edit called "girl": one repair, no forced word
-        bad = example(5).replace("a woman with a pregnant belly", "a girl with a pregnant belly")
-        found = misses(bad, REQS[5])
+        belly = fc.InpaintRequest(idea="pregnant belly, pale skin", method="auto", n_images=1)
+        found = misses("PROMPT: a girl with a pregnant belly, pale skin, photo\nADDITIONAL: N/A\nNEGATIVE: blurry", belly)
         self.assertTrue(any("Name the person as the picture shows them" in m for m in found), found)
         # any other edit: "girl" is simply kept
         arms = fc.InpaintRequest(idea="muscular arms", n_images=1)
@@ -231,8 +232,9 @@ class InpaintFocus(unittest.TestCase):
 
     def test_rules_say_write_what_is_asked(self):
         self.assertIn("Write what the user asks for.", SYSTEM)
-        self.assertNotIn("anyone who could be a minor", SYSTEM)
-        self.assertNotIn("Body edits are for adults", SYSTEM)
+        self.assertIn("for any kind of edit", SYSTEM)
+        for text in ("anyone who could be a minor", "Body edits are for adults", "never write", "pregnan"):
+            self.assertNotIn(text, SYSTEM)   # the block lives in the code, not in the model's rules
 
 
 class Installer(unittest.TestCase):

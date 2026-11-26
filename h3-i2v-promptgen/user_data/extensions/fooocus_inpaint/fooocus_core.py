@@ -110,7 +110,7 @@ def suggest_method(idea: str, area: str = "", outpaint=None) -> tuple[str, str]:
 
 
 def required_phrases(idea: str) -> list[str]:
-    """Keyword ideas ("pregnant belly, pale skin"): each short phrase must appear word for word."""
+    """Keyword ideas ("red leather jacket, silver zipper"): each short phrase must appear word for word."""
     text = (idea or "").strip()
     if not text or not text.isascii():
         return []
@@ -160,7 +160,7 @@ def tips(r: "InpaintRequest") -> list[str]:
         out.append(f"Method picked by Auto: {r.auto_reason}.")
     if r.method in ("default", "modify") and SHAPE_RE.search(f"{r.idea} {r.area}"):
         out.append("This edit makes something bigger than it is now: mask a little beyond where the new shape will "
-                   "reach (for a pregnant belly, the space in front of the stomach too), or Fooocus can only fill the "
+                   "reach (for longer hair, where it will fall), or Fooocus can only fill the "
                    "current outline.")
     if r.method == "default":
         out.append("If the old shape keeps showing through, switch the method to Modify Content (it ignores what is "
@@ -418,7 +418,7 @@ def checks(fields: dict, r: InpaintRequest) -> list:
                                       "picture shows them (an adult is \"woman\" or \"man\"); if the person is a "
                                       "child, answer with three N/A lines.", repair=True))
 
-    # keyword ideas: every phrase word for word ("pregnant belly", "pale skin")
+    # keyword ideas: every phrase word for word ("red leather jacket", "silver zipper")
     phrases = required_phrases(r.idea)
     if phrases:
         flat = " ".join(re.findall(r"[a-z0-9']+", pos_low))
