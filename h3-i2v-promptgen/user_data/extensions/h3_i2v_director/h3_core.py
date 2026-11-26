@@ -1409,3 +1409,46 @@ def report_markdown(issues: list[Issue], notes: list[str], prompt: str = "", che
         lines.append(f"<small>{n_shots} shot(s) · {len(desc.split())} words in the description · "
                      f"{len(DIALOGUE_RE.findall(desc))} dialogue line(s)</small>")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------------------
+# The one block every tab keeps, in code (it costs the model no tokens): no sexual, nude,
+# underwear or pregnancy content for a girl, boy or child, in the request or in the answer.
+# --------------------------------------------------------------------------------------
+
+_MINOR = r"(?:girl|girls|boy|boys|child|children|kid|kids|toddler|baby|teen|teens|teenager|schoolgirl|schoolboy)"
+# the one line this tab keeps: no sexual, nude, underwear or pregnancy edits for a girl, boy or child
+_BODY = (r"(?:pregnan\w*|nude|naked|nudity|topless|bare chest|breasts?|nipples?|underwear|lingerie|panties|bra|"
+         r"sexy|sexual|sexualized|erotic|seductive|provocative)")
+_ADULT = r"(?:woman|women|man|men|lady|ladies|mother|mom|wife|husband|father|dad)"
+_FOR_MINOR_RE = re.compile(   # the body edit is clearly for a minor
+    rf"\b(?:pregnan\w*|nude|naked|topless)\s+(?:\w+\s+)?{_MINOR}\b"                 # pregnant girl
+    rf"|\b{_MINOR}(?:'s)?\s+(?:\w+\s+)?{_BODY}\b"                                     # girl pregnant belly, girl in lingerie
+    rf"|\b{_BODY}(?:\s+(?!{_ADULT}\b)(?!next\b)\w+){{0,2}}\s+(?:on|of|for)\s+(?:the\s+|a\s+|this\s+|that\s+)?"
+    rf"(?:\w+\s+)?{_MINOR}\b"                                                         # pregnant belly on (the) girl
+    rf"|\b{_MINOR}\s+(?:is|looks|gets|becomes)\s+(?:\w+\s+)?(?:pregnan\w*|nude|naked|topless)\b", re.I)
+_BODY_RE = re.compile(rf"\b{_BODY}\b", re.I)
+_BABY_BUMP_RE = re.compile(r"\bbaby[\s-]+bumps?\b", re.I)   # "baby bump" is pregnancy, not a baby
+
+
+def _no_baby_bump(text: str) -> str:
+    return _BABY_BUMP_RE.sub("pregnancy bump", text or "")
+_MINOR_RE = re.compile(rf"\b{_MINOR}\b", re.I)
+_ADULT_RE = re.compile(rf"\b{_ADULT}\b", re.I)
+
+
+def blocked_reason(text: str) -> str:
+    """The user's request asks for that content for a girl, boy or child."""
+    t = _no_baby_bump(text)
+    if _FOR_MINOR_RE.search(t) or (_BODY_RE.search(t) and _MINOR_RE.search(t) and not _ADULT_RE.search(t)):
+        return ("This tab doesn't write sexual, nude, underwear or pregnancy content for a girl, boy or child. "
+                "Everything else it writes as you ask.")
+    return ""
+
+
+def blocked_output(text: str) -> str:
+    """The model's answer describes a girl, boy or child that way: it is not shown."""
+    if blocked_reason(text):
+        return ("The model wrote sexual, nude, underwear or pregnancy content for a girl, boy or child; this tab "
+                "doesn't show that. Everything else it writes as you ask.")
+    return ""

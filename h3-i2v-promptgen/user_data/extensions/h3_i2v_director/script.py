@@ -705,6 +705,10 @@ def generate(mode_label, img1, img2, idea, duration, aspect, shots, camera, ampl
                  and not getattr(shared, "is_multimodal", False))
     req = _request(mode_label, idea, duration, aspect, shots, camera, amplitude, speed, dialogue, dialogue_language,
                    music, music_text, silent, style, notes, 0 if blind else len(images))
+    stop_reason = core.blocked_reason(f"{idea or ''} {dialogue or ''}")
+    if stop_reason:
+        yield gr.update(), "", "", f"❌ {stop_reason}"
+        return
     if blind and not (notes or "").strip():
         yield gr.update(), "", "", ("❌ Inkling is loaded without its vision file, so it can't see the picture. Open "
                                     "*Model and GPU* above, pick the mmproj file and press *Load Inkling*, or describe "
@@ -726,6 +730,10 @@ def generate(mode_label, img1, img2, idea, duration, aspect, shots, camera, ampl
             else:
                 result = event[1:]
         fixed, fix_notes, issues, checks, thoughts = result
+        held_back = core.blocked_output(fixed)
+        if held_back:
+            yield "", "", thoughts, f"❌ {held_back}"
+            return
         report = core.report_markdown(issues, fix_notes, fixed, checks)
         if any(i.level == "error" for i in issues):
             status = ("⚠️ Finished, but the format check still finds problems (see below). Generate again, set "

@@ -136,6 +136,10 @@ def generate(img1, mode_label, who, snap_at, idea, duration, head, hands, dialog
     if img1 is None and not (notes or "").strip():
         yield gr.update(), "", "", "❌ Add the picture first, or describe it in *Picture notes*."
         return
+    stop_reason = core.blocked_reason(f"{idea or ''} {dialogue or ''}")
+    if stop_reason:
+        yield gr.update(), "", "", f"❌ {stop_reason}"
+        return
     blind = bool(img1 is not None and cfg["backend"] == "textgen" and shared.model is not None
                  and not getattr(shared, "is_multimodal", False))
     if blind and not (notes or "").strip():
@@ -160,6 +164,10 @@ def generate(img1, mode_label, who, snap_at, idea, duration, head, hands, dialog
             else:
                 result = event[1:]
         fixed, fix_notes, issues, found, thoughts = result
+        held_back = core.blocked_output(fixed)
+        if held_back:
+            yield "", "", thoughts, f"❌ {held_back}"
+            return
         report = pov.report_markdown(issues, fix_notes, fixed, found)
         if any(i.level == "error" for i in issues):
             status = ("⚠️ Finished, but the format check still finds problems (see below). Generate again, or edit "

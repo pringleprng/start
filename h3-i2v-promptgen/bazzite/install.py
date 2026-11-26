@@ -794,7 +794,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "AMD64"):
-        say("This installer is for x86-64 Linux (Bazzite). See the README for Windows/macOS.")
+        say("This installer is for x86-64 Linux (Bazzite).")
         return 1
     base = Path(args.dir).expanduser().resolve()
     downloads = base / "downloads"

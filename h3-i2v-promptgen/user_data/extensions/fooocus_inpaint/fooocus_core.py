@@ -68,26 +68,8 @@ _MODIFY_RE = re.compile(r"\b(?:add|adds|insert|put|place|new|remove|removes|eras
 # changes that make something bigger than its outline in the picture: the mask must leave room
 SHAPE_RE = re.compile(r"\b(?:pregnan\w*|belly|bump|bigger|larger|longer|taller|wider|thicker|fuller|muscular|curvy|"
                       r"chubby|fat|bulk\w*|grow\w*|extend\w*|hair)\b", re.I)
-# no pregnancy or nude edits for a minor
-_MINOR = r"(?:girl|girls|boy|boys|child|children|kid|kids|toddler|baby|teen|teens|teenager|schoolgirl|schoolboy)"
-# the one line this tab keeps: no sexual, nude, underwear or pregnancy edits for a girl, boy or child
-_BODY = (r"(?:pregnan\w*|nude|naked|nudity|topless|bare chest|breasts?|nipples?|underwear|lingerie|panties|bra|"
-         r"sexy|sexual|sexualized|erotic|seductive|provocative)")
-_ADULT = r"(?:woman|women|man|men|lady|ladies|mother|mom|wife|husband|father|dad)"
-_FOR_MINOR_RE = re.compile(   # the body edit is clearly for a minor
-    rf"\b(?:pregnan\w*|nude|naked|topless)\s+(?:\w+\s+)?{_MINOR}\b"                 # pregnant girl
-    rf"|\b{_MINOR}(?:'s)?\s+(?:\w+\s+)?{_BODY}\b"                                     # girl pregnant belly, girl in lingerie
-    rf"|\b{_BODY}(?:\s+(?!{_ADULT}\b)(?!next\b)\w+){{0,2}}\s+(?:on|of|for)\s+(?:the\s+|a\s+|this\s+|that\s+)?"
-    rf"(?:\w+\s+)?{_MINOR}\b"                                                         # pregnant belly on (the) girl
-    rf"|\b{_MINOR}\s+(?:is|looks|gets|becomes)\s+(?:\w+\s+)?(?:pregnan\w*|nude|naked|topless)\b", re.I)
-_BODY_RE = re.compile(rf"\b{_BODY}\b", re.I)
-_BABY_BUMP_RE = re.compile(r"\bbaby[\s-]+bumps?\b", re.I)   # "baby bump" is pregnancy, not a baby
-
-
-def _no_baby_bump(text: str) -> str:
-    return _BABY_BUMP_RE.sub("pregnancy bump", text or "")
-_MINOR_RE = re.compile(rf"\b{_MINOR}\b", re.I)
-_ADULT_RE = re.compile(rf"\b{_ADULT}\b", re.I)
+# the block itself lives in h3_core (shared by all tabs)
+_BODY_RE, _MINOR_RE, _no_baby_bump = core._BODY_RE, core._MINOR_RE, core._no_baby_bump
 H3_LEFTOVERS = re.compile(r"integrated_multimodal_description|overall_soundscape|non_diegetic_music|\[Shot \d|"
                           r"<Picture \d>|fully referenced", re.I)
 
@@ -134,23 +116,11 @@ def _verb_like(words) -> bool:
 
 
 def blocked_reason(idea: str, area: str = "") -> str:
-    """This tab writes no pregnancy, nude or underwear edits for a girl, boy or child."""
-    text = _no_baby_bump(f"{idea or ''} {area or ''}")
-    clearly_minor = _FOR_MINOR_RE.search(text)
-    only_minor = _BODY_RE.search(text) and _MINOR_RE.search(text) and not _ADULT_RE.search(text)
-    if clearly_minor or only_minor:
-        return ("This tab doesn't write sexual, nude, underwear or pregnancy edits for a girl, boy or child. "
-                "Everything else it writes as you ask.")
-    return ""
+    return core.blocked_reason(f"{idea or ''} {area or ''}")
 
 
 def blocked_output(fields: dict) -> str:
-    """The same line for what the model wrote: a prompt describing a minor that way is not shown."""
-    text = _no_baby_bump(f"{fields.get('prompt', '')}, {fields.get('additional', '')}")
-    if _FOR_MINOR_RE.search(text) or (_BODY_RE.search(text) and _MINOR_RE.search(text) and not _ADULT_RE.search(text)):
-        return ("The model described a girl, boy or child with a sexual, nude, underwear or pregnancy edit; this tab "
-                "doesn't write that. Everything else it writes as you ask.")
-    return ""
+    return core.blocked_output(f"{fields.get('prompt', '')}, {fields.get('additional', '')}")
 
 
 def tips(r: "InpaintRequest") -> list[str]:
