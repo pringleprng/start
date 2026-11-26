@@ -363,8 +363,9 @@ Method: Inpaint or Outpaint (default), picked by Auto. Tip: mask a little beyond
    (Settings tab). The tips under the settings say how to mask (for a bigger shape such as a pregnant belly, mask
    a little beyond where it will reach) and what to try if the old shape shows through.
 
-Body edits are for adults: the person is called "woman" or "man" when you name nobody, and the tab writes no
-pregnancy, nude or underwear edits for a girl, boy or child.
+It writes what you ask for, without softening it. When you name nobody, the person is named as the picture shows
+them (an adult is "woman" or "man"). The only things it doesn't write are sexual, nude, underwear or pregnancy
+edits for a girl, boy or child, and sexual edits of a real, identifiable person.
 
 How it follows Fooocus (read from Fooocus 2.5.5's own code):
 

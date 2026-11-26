@@ -70,20 +70,22 @@ SHAPE_RE = re.compile(r"\b(?:pregnan\w*|belly|bump|bigger|larger|longer|taller|w
                       r"chubby|fat|bulk\w*|grow\w*|extend\w*|hair)\b", re.I)
 # no pregnancy or nude edits for a minor
 _MINOR = r"(?:girl|girls|boy|boys|child|children|kid|kids|toddler|baby|teen|teens|teenager|schoolgirl|schoolboy)"
-_BODY = r"(?:pregnan\w*|belly|bump|nude|naked|topless|bare chest|breasts?|nipples?|underwear|lingerie)"
+# the one line this tab keeps: no sexual, nude, underwear or pregnancy edits for a girl, boy or child
+_BODY = (r"(?:pregnan\w*|nude|naked|nudity|topless|bare chest|breasts?|nipples?|underwear|lingerie|panties|bra|"
+         r"sexy|sexual|sexualized|erotic|seductive|provocative)")
 _ADULT = r"(?:woman|women|man|men|lady|ladies|mother|mom|wife|husband|father|dad)"
 _FOR_MINOR_RE = re.compile(   # the body edit is clearly for a minor
     rf"\b(?:pregnan\w*|nude|naked|topless)\s+(?:\w+\s+)?{_MINOR}\b"                 # pregnant girl
-    rf"|\b{_MINOR}(?:'s)?\s+(?:\w+\s+)?{_BODY}\b"                                     # girl pregnant belly, girl's belly
+    rf"|\b{_MINOR}(?:'s)?\s+(?:\w+\s+)?{_BODY}\b"                                     # girl pregnant belly, girl in lingerie
     rf"|\b{_BODY}(?:\s+(?!{_ADULT}\b)(?!next\b)\w+){{0,2}}\s+(?:on|of|for)\s+(?:the\s+|a\s+|this\s+|that\s+)?"
     rf"(?:\w+\s+)?{_MINOR}\b"                                                         # pregnant belly on (the) girl
     rf"|\b{_MINOR}\s+(?:is|looks|gets|becomes)\s+(?:\w+\s+)?(?:pregnan\w*|nude|naked|topless)\b", re.I)
 _BODY_RE = re.compile(rf"\b{_BODY}\b", re.I)
-_BABY_BUMP_RE = re.compile(r"\bbaby[\s-]+(?=bumps?\b)", re.I)   # "baby bump" is a pregnant belly, not a baby
+_BABY_BUMP_RE = re.compile(r"\bbaby[\s-]+bumps?\b", re.I)   # "baby bump" is pregnancy, not a baby
 
 
 def _no_baby_bump(text: str) -> str:
-    return _BABY_BUMP_RE.sub("", text or "")
+    return _BABY_BUMP_RE.sub("pregnancy bump", text or "")
 _MINOR_RE = re.compile(rf"\b{_MINOR}\b", re.I)
 _ADULT_RE = re.compile(rf"\b{_ADULT}\b", re.I)
 H3_LEFTOVERS = re.compile(r"integrated_multimodal_description|overall_soundscape|non_diegetic_music|\[Shot \d|"
@@ -137,8 +139,17 @@ def blocked_reason(idea: str, area: str = "") -> str:
     clearly_minor = _FOR_MINOR_RE.search(text)
     only_minor = _BODY_RE.search(text) and _MINOR_RE.search(text) and not _ADULT_RE.search(text)
     if clearly_minor or only_minor:
-        return ("This tab doesn't write pregnancy, nude or underwear edits for a girl, boy or child. For an adult, "
-                "write \"woman\" or \"man\".")
+        return ("This tab doesn't write sexual, nude, underwear or pregnancy edits for a girl, boy or child. "
+                "Everything else it writes as you ask.")
+    return ""
+
+
+def blocked_output(fields: dict) -> str:
+    """The same line for what the model wrote: a prompt describing a minor that way is not shown."""
+    text = _no_baby_bump(f"{fields.get('prompt', '')}, {fields.get('additional', '')}")
+    if _FOR_MINOR_RE.search(text) or (_BODY_RE.search(text) and _MINOR_RE.search(text) and not _ADULT_RE.search(text)):
+        return ("The model described a girl, boy or child with a sexual, nude, underwear or pregnancy edit; this tab "
+                "doesn't write that. Everything else it writes as you ask.")
     return ""
 
 
@@ -399,12 +410,13 @@ def checks(fields: dict, r: InpaintRequest) -> list:
                            f"NEGATIVE contains what you asked for: {', '.join(clashes[:3])}; take it out.",
                            repair=bool(clashes)))
 
-    # body edits are for adults: no "girl" / "child" the user did not write
-    if _BODY_RE.search(r.idea):
+    # the one line: a sexual, nude, underwear or pregnancy edit next to "girl"/"boy"/"child" the user did not write
+    if _BODY_RE.search(_no_baby_bump(r.idea)):
         minor = _MINOR_RE.search(_no_baby_bump(pos_low))
         if minor and not _MINOR_RE.search(_no_baby_bump(r.idea)):
-            found.append(Check(False, f"People: \"{minor.group(0)}\" is used in a body edit; the person is an adult: "
-                                      "call her \"woman\" (or him \"man\").", repair=True))
+            found.append(Check(False, f"People: \"{minor.group(0)}\" appears with this edit. Name the person as the "
+                                      "picture shows them (an adult is \"woman\" or \"man\"); if the person is a "
+                                      "child, answer with three N/A lines.", repair=True))
 
     # keyword ideas: every phrase word for word ("pregnant belly", "pale skin")
     phrases = required_phrases(r.idea)

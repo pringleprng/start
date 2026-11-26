@@ -75,7 +75,7 @@ class Examples(unittest.TestCase):
     def test_rules(self):
         self.assertNotIn("{", SYSTEM)
         self.assertIn("Fooocus splits a prompt at every line break", SYSTEM)
-        self.assertIn("never sexual or nude content involving a girl", SYSTEM)
+        self.assertIn("sexual, nude, underwear or pregnancy content for a girl, boy or child", SYSTEM)
         for word in ("older, younger", '"younger woman"'):
             self.assertIn(word, SYSTEM)
 
@@ -201,19 +201,38 @@ class InpaintFocus(unittest.TestCase):
         self.assertIn("switch the method to Modify Content", md)
         self.assertNotIn("beyond where", fc.settings_markdown(fc.InpaintRequest(idea="detailed hands", method="auto")))
 
-    def test_body_edits_are_for_adults(self):
-        bad = example(5).replace("a woman with a pregnant belly", "a girl with a pregnant belly")
-        self.assertTrue(any("is used in a body edit; the person is an adult" in m for m in misses(bad, REQS[5])))
-        for idea, blocked in (("pregnant belly, pale skin", False), ("pregnant belly on girl", True),
-                              ("girl pregnant belly", True), ("pregnant girl", True), ("girl's belly bigger", True),
-                              ("girl, pregnant belly", True), ("nude girl", True),
+    def test_only_one_line_is_kept(self):
+        """Everything is written as asked, except sexual, nude, underwear or pregnancy edits for a girl, boy or child."""
+        for idea, blocked in (("pregnant belly, pale skin", False), ("baby bump, pale skin", False),
+                              ("bigger baby bump", False), ("girl's belly bigger", False), ("girl with muscular arms", False),
+                              ("longer hair on girl", False), ("red hoodie on girl", False),
                               ("pregnant woman next to girl, pregnant belly", False),
                               ("muscular woman standing next to girl, pregnant belly on the woman, pale skin", False),
-                              ("change girl shirt to red hoodie", False), ("baby bump, pale skin", False),
-                              ("bigger baby bump", False)):
+                              ("change girl shirt to red hoodie", False),
+                              ("pregnant belly on girl", True), ("girl pregnant belly", True), ("pregnant girl", True),
+                              ("girl, pregnant belly", True), ("girl baby bump", True), ("topless girl", True),
+                              ("girl in lingerie", True), ("sexy girl", True), ("nude boy", True)):
             with self.subTest(idea):
                 self.assertEqual(bool(fc.blocked_reason(idea)), blocked)
-        self.assertIn("girl, boy or child", fc.blocked_reason("pregnant belly on girl"))
+        self.assertIn("Everything else it writes as you ask", fc.blocked_reason("pregnant belly on girl"))
+
+    def test_what_the_model_wrote(self):
+        self.assertTrue(fc.blocked_output({"prompt": "a girl with a pregnant belly, pale skin", "additional": ""}))
+        self.assertFalse(fc.blocked_output({"prompt": example(5).split("\n")[0], "additional": ""}))
+        self.assertFalse(fc.blocked_output({"prompt": "a girl with muscular arms, photo", "additional": ""}))
+        # an unnamed person in a pregnancy edit called "girl": one repair, no forced word
+        bad = example(5).replace("a woman with a pregnant belly", "a girl with a pregnant belly")
+        found = misses(bad, REQS[5])
+        self.assertTrue(any("Name the person as the picture shows them" in m for m in found), found)
+        # any other edit: "girl" is simply kept
+        arms = fc.InpaintRequest(idea="muscular arms", n_images=1)
+        text = "PROMPT: a girl with muscular arms, photo\nADDITIONAL: N/A\nNEGATIVE: blurry"
+        self.assertFalse(any(m.startswith("People") for m in misses(text, arms)))
+
+    def test_rules_say_write_what_is_asked(self):
+        self.assertIn("Write what the user asks for.", SYSTEM)
+        self.assertNotIn("anyone who could be a minor", SYSTEM)
+        self.assertNotIn("Body edits are for adults", SYSTEM)
 
 
 class Installer(unittest.TestCase):

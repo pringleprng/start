@@ -190,6 +190,13 @@ def generate(img, mask, method_label, outpaint, area, idea, style, negative, not
             else:
                 result = event[1:]
         fields, fix_notes, issues, found, thoughts = result
+        held_back = fc.blocked_output(fields)
+        if not held_back and not any(fields.values()) and fc._BODY_RE.search(fc._no_baby_bump(req.idea)):
+            held_back = ("The model answered N/A: it sees a girl, boy or child in the masked area, and this tab "
+                         "doesn't write sexual, nude, underwear or pregnancy edits for them.")
+        if held_back:
+            yield "", "", "", settings, "", thoughts, f"❌ {held_back}"
+            return
         report = fc.report_markdown(issues, fix_notes, found)
         if any(i.level == "error" for i in issues):
             status = "⚠️ Finished, but the format check still finds problems (see below). Generate again, or edit and press Re-check."
