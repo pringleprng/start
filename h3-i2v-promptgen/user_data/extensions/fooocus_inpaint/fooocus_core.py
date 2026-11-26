@@ -35,6 +35,7 @@ def _load_h3_core():
 core = _load_h3_core()
 Issue, Check = core.Issue, core.Check
 
+AUTO = "Auto (the best method for this edit)"
 # Fooocus's own method names (modules/flags.py)
 METHODS = {
     "default": "Inpaint or Outpaint (default)",
@@ -57,12 +58,108 @@ improve improves erase delete get rid area""".split())
 DEFECT_WORDS = re.compile(r"\b(?:deformed|extra|bad|blurry|blurred|distorted|missing|mutated|ugly|poorly|malformed|"
                           r"fused|broken|low|disfigured|cropped|duplicate|wrong|asymmetrical|floating|unnatural|"
                           r"warped|melted|messy|noisy|grainy|jpeg|artifacts?)\b", re.I)
+# words that pick the method in Auto
+_DETAIL_RE = re.compile(r"\b(?:detail(?:ed|s)?|sharp(?:er|en)?|clear(?:er)?|fix|fixes|improve|enhance|refine|better|"
+                        r"crisp(?:er)?|focus(?:ed)?|restore|repair)\b", re.I)
+_DETAIL_PART_RE = re.compile(r"\b(?:face|faces|eyes?|hands?|fingers?|teeth|mouth|lips|nose|ears?|skin texture|"
+                             r"details?)\b", re.I)
+_MODIFY_RE = re.compile(r"\b(?:add|adds|insert|put|place|new|remove|removes|erase|delete|get rid of|replace the "
+                        r"background|background)\b", re.I)
+# changes that make something bigger than its outline in the picture: the mask must leave room
+SHAPE_RE = re.compile(r"\b(?:pregnan\w*|belly|bump|bigger|larger|longer|taller|wider|thicker|fuller|muscular|curvy|"
+                      r"chubby|fat|bulk\w*|grow\w*|extend\w*|hair)\b", re.I)
+# no pregnancy or nude edits for a minor
+_MINOR = r"(?:girl|girls|boy|boys|child|children|kid|kids|toddler|baby|teen|teens|teenager|schoolgirl|schoolboy)"
+_BODY = r"(?:pregnan\w*|belly|bump|nude|naked|topless|bare chest|breasts?|nipples?|underwear|lingerie)"
+_ADULT = r"(?:woman|women|man|men|lady|ladies|mother|mom|wife|husband|father|dad)"
+_FOR_MINOR_RE = re.compile(   # the body edit is clearly for a minor
+    rf"\b(?:pregnan\w*|nude|naked|topless)\s+(?:\w+\s+)?{_MINOR}\b"                 # pregnant girl
+    rf"|\b{_MINOR}(?:'s)?\s+(?:\w+\s+)?{_BODY}\b"                                     # girl pregnant belly, girl's belly
+    rf"|\b{_BODY}(?:\s+(?!{_ADULT}\b)(?!next\b)\w+){{0,2}}\s+(?:on|of|for)\s+(?:the\s+|a\s+|this\s+|that\s+)?"
+    rf"(?:\w+\s+)?{_MINOR}\b"                                                         # pregnant belly on (the) girl
+    rf"|\b{_MINOR}\s+(?:is|looks|gets|becomes)\s+(?:\w+\s+)?(?:pregnan\w*|nude|naked|topless)\b", re.I)
+_BODY_RE = re.compile(rf"\b{_BODY}\b", re.I)
+_BABY_BUMP_RE = re.compile(r"\bbaby[\s-]+(?=bumps?\b)", re.I)   # "baby bump" is a pregnant belly, not a baby
+
+
+def _no_baby_bump(text: str) -> str:
+    return _BABY_BUMP_RE.sub("", text or "")
+_MINOR_RE = re.compile(rf"\b{_MINOR}\b", re.I)
+_ADULT_RE = re.compile(rf"\b{_ADULT}\b", re.I)
 H3_LEFTOVERS = re.compile(r"integrated_multimodal_description|overall_soundscape|non_diegetic_music|\[Shot \d|"
                           r"<Picture \d>|fully referenced", re.I)
 
 
 def load_system_prompt() -> str:
     return SYSTEM_PROMPT_FILE.read_text(encoding="utf-8").strip()
+
+
+def suggest_method(idea: str, area: str = "", outpaint=None) -> tuple[str, str]:
+    """(method, why) for Auto: Fooocus's own descriptions of the three methods applied to the idea."""
+    text = f"{idea or ''} {area or ''}"
+    if outpaint:
+        return "default", "extending the picture is done with Inpaint or Outpaint"
+    if _DETAIL_RE.search(text) and (_DETAIL_PART_RE.search(text) or len(text.split()) <= 6):
+        return "detail", "sharpening what is there (face, eyes, hands) is what Improve Detail is for"
+    if _MODIFY_RE.search(text):
+        return "modify", "adding something new, removing something or a new background is what Modify Content is for"
+    return "default", ("changing what is there (a body part, clothes, hair, colors) keeps the skin tone, light and "
+                       "edges of the picture best with Inpaint or Outpaint")
+
+
+def required_phrases(idea: str) -> list[str]:
+    """Keyword ideas ("pregnant belly, pale skin"): each short phrase must appear word for word."""
+    text = (idea or "").strip()
+    if not text or not text.isascii():
+        return []
+    parts = [p.strip(" .;:!\"'").lower() for p in re.split(r",|;|\n|\band\b(?=\s+\w+\s*(?:,|$))", text)]
+    phrases = []
+    for p in parts:
+        words = p.split()
+        if not 1 <= len(words) <= 4 or words[0] in EDIT_WORDS or _verb_like(words):
+            return []      # a sentence ("change girl shirt to red hoodie"), not a keyword list
+        phrases.append(" ".join(words))
+    return phrases
+
+
+_SENTENCE_WORDS = {"to", "into", "is", "are", "was", "were", "has", "have", "should", "please", "will", "would",
+                   "can", "could", "make", "making", "want", "need"}
+
+
+def _verb_like(words) -> bool:
+    """Sentence words give a sentence away; a keyword list has none ("detailed hands" is a keyword phrase)."""
+    return any(w in _SENTENCE_WORDS for w in words)
+
+
+def blocked_reason(idea: str, area: str = "") -> str:
+    """This tab writes no pregnancy, nude or underwear edits for a girl, boy or child."""
+    text = _no_baby_bump(f"{idea or ''} {area or ''}")
+    clearly_minor = _FOR_MINOR_RE.search(text)
+    only_minor = _BODY_RE.search(text) and _MINOR_RE.search(text) and not _ADULT_RE.search(text)
+    if clearly_minor or only_minor:
+        return ("This tab doesn't write pregnancy, nude or underwear edits for a girl, boy or child. For an adult, "
+                "write \"woman\" or \"man\".")
+    return ""
+
+
+def tips(r: "InpaintRequest") -> list[str]:
+    r.clamp()
+    out = []
+    if r.auto_reason:
+        out.append(f"Method picked by Auto: {r.auto_reason}.")
+    if r.method in ("default", "modify") and SHAPE_RE.search(f"{r.idea} {r.area}"):
+        out.append("This edit makes something bigger than it is now: mask a little beyond where the new shape will "
+                   "reach (for a pregnant belly, the space in front of the stomach too), or Fooocus can only fill the "
+                   "current outline.")
+    if r.method == "default":
+        out.append("If the old shape keeps showing through, switch the method to Modify Content (it ignores what is "
+                   "under the mask) and use the ADDITIONAL line it then needs: generate again here with that method.")
+    elif r.method == "detail":
+        out.append("Mask only the part to sharpen (the face, the eyes, one hand); Improve Detail keeps the shapes.")
+    else:
+        out.append("Modify Content sees only the masked area: mask generously so the new content has room and edges "
+                   "to blend into.")
+    return out
 
 
 @dataclass
@@ -76,9 +173,11 @@ class InpaintRequest:
     image_notes: str = ""
     n_images: int = 0
     has_mask: bool = False            # the picture shows the mask as a red tint
+    auto_reason: str = ""             # why Auto picked the method ("" = the user picked it)
 
     def clamp(self) -> "InpaintRequest":
-        self.method = self.method if self.method in METHODS else "default"
+        if self.method == "auto" or self.method not in METHODS:
+            self.method, self.auto_reason = suggest_method(self.idea, self.area, self.outpaint)
         self.outpaint = [d for d in OUTPAINT if d in (self.outpaint or [])] if self.method == "default" else []
         self.negative = self.negative if self.negative in ("auto", "none") else "auto"
         return self
@@ -113,7 +212,17 @@ def build_user_message(r: InpaintRequest) -> str:
     else:
         out.append("- ADDITIONAL: only the new content of the masked area (3 to 20 words). PROMPT: the whole picture "
                    "as it should look with the new content in place.")
-    out += _people_lines(r.idea)
+    phrases = required_phrases(r.idea)
+    if phrases:
+        where = "PROMPT" if r.method == "default" else "ADDITIONAL (and PROMPT)"
+        out.append(f"- The idea is a list of the user's own words: put each of them word for word near the start of "
+                   f"{where}: " + ", ".join(f'"{p}"' for p in phrases) + ". Then add only words that support them "
+                   "and match the picture (shape, texture, color, light).")
+    people = _people_lines(r.idea)
+    out += people
+    if not people:
+        out.append("- The user names nobody: name the person in the masked area by what the picture shows, with the "
+                   "plain words \"woman\" or \"man\" for adults, and no age words.")
     if r.negative == "none":
         out.append("- NEGATIVE: N/A (the user wants no negative prompt).")
     else:
@@ -277,6 +386,7 @@ def checks(fields: dict, r: InpaintRequest) -> list:
     # an item clashes when it is made only of what the user asked for ("red hoodie", "clear eyes"); "grey sky" or
     # "storm clouds" next to a wanted blue sky with white clouds rule out the old look, which is right
     wanted = {core._stem(w) for w in _wanted_words(r.idea) if core._stem(w) in core._stem_text(pos_low)}
+    wanted |= {core._stem(w) for p in required_phrases(r.idea) for w in p.split()}   # keyword ideas: always wanted
     clashes = []
     for item in [x.strip() for x in fields["negative"].split(",") if x.strip()]:
         if DEFECT_WORDS.search(item):
@@ -288,6 +398,23 @@ def checks(fields: dict, r: InpaintRequest) -> list:
         found.append(Check(not clashes, "NEGATIVE: nothing you asked for" if not clashes else
                            f"NEGATIVE contains what you asked for: {', '.join(clashes[:3])}; take it out.",
                            repair=bool(clashes)))
+
+    # body edits are for adults: no "girl" / "child" the user did not write
+    if _BODY_RE.search(r.idea):
+        minor = _MINOR_RE.search(_no_baby_bump(pos_low))
+        if minor and not _MINOR_RE.search(_no_baby_bump(r.idea)):
+            found.append(Check(False, f"People: \"{minor.group(0)}\" is used in a body edit; the person is an adult: "
+                                      "call her \"woman\" (or him \"man\").", repair=True))
+
+    # keyword ideas: every phrase word for word ("pregnant belly", "pale skin")
+    phrases = required_phrases(r.idea)
+    if phrases:
+        flat = " ".join(re.findall(r"[a-z0-9']+", pos_low))
+        missing = [p for p in phrases if not re.search(rf"\b{re.escape(p)}\b", flat)]
+        found.append(Check(not missing, "Your words, word for word: " + ", ".join(f'"{p}"' for p in phrases)
+                           if not missing else "Your words missing word for word: "
+                           + ", ".join(f'"{p}"' for p in missing) + "; put them in as you wrote them.",
+                           repair=bool(missing)))
 
     # the idea's own words (without editing words such as change, add, remove)
     keys = _wanted_words(r.idea)
@@ -316,7 +443,7 @@ def settings_markdown(r: InpaintRequest) -> str:
         "",
         "| Setting | Value |",
         "|---|---|",
-        f"| Method | {METHODS[r.method]} |",
+        f"| Method | {METHODS[r.method]}{' (picked by Auto)' if r.auto_reason else ''} |",
     ]
     if r.method == "default":
         rows.append(f"| Outpaint Direction | {', '.join(r.outpaint) if r.outpaint else 'none (inpaint only)'} |")
@@ -328,6 +455,9 @@ def settings_markdown(r: InpaintRequest) -> str:
         + (" (only the masked area)" if s["field"] == 0 else " (uses the picture around the mask)") + " |",
         f"| Inpaint Engine | {s['engine']} |",
         f"| Disable initial latent in inpaint | {'on' if s['no_initial_latent'] else 'off'} |",
+        "",
+        "**Tips for this edit:**",
+        *[f"- {t}" for t in tips(r)],
         "",
         "<small>Fooocus sets the last four by itself when you choose the method; they are under Advanced → "
         "Developer Debug Mode → Inpaint if you want to check them. With the Fooocus V2 style on, Fooocus adds a few "

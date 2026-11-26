@@ -21,6 +21,7 @@ REQS = {
     2: fc.InpaintRequest(idea="fix the girl's face", area="the girl's face", method="detail", n_images=1),
     3: fc.InpaintRequest(idea="add muscular woman holding stick", area="the grass on the right", method="modify", n_images=1),
     4: fc.InpaintRequest(idea="make it wider, more beach and sea", method="default", outpaint=["Left", "Right"], n_images=1),
+    5: fc.InpaintRequest(idea="pregnant belly, pale skin", area="her stomach", method="auto", n_images=1),
 }
 
 
@@ -162,6 +163,57 @@ class UsersWords(unittest.TestCase):
         self.assertIn("The red-tinted part is the masked area", msg)
         self.assertIn("OUTPAINT DIRECTION: Top.", msg)
         self.assertEqual(fc.InpaintRequest(method="detail", outpaint=["Top"]).clamp().outpaint, [])
+
+
+class InpaintFocus(unittest.TestCase):
+    """Short keyword ideas like "pregnant belly, pale skin" get the best inpaint prompt."""
+
+    def test_auto_picks_the_method(self):
+        for idea, method in (("pregnant belly, pale skin", "default"), ("longer blonde hair", "default"),
+                             ("red hoodie", "default"), ("change girl shirt to red hoodie", "default"),
+                             ("detailed hands", "detail"), ("sharper face with clear eyes", "detail"),
+                             ("add a red wooden bench", "modify"), ("remove the lamp", "modify"),
+                             ("new background, a beach at sunset", "modify")):
+            with self.subTest(idea):
+                r = fc.InpaintRequest(idea=idea, method="auto").clamp()
+                self.assertEqual(r.method, method)
+                self.assertTrue(r.auto_reason)
+        self.assertEqual(fc.InpaintRequest(idea="x", method="auto", outpaint=["Left"]).clamp().method, "default")
+        self.assertEqual(fc.InpaintRequest(idea="add a bench", method="detail").clamp().auto_reason, "")
+
+    def test_keywords_word_for_word(self):
+        self.assertEqual(fc.required_phrases("pregnant belly, pale skin"), ["pregnant belly", "pale skin"])
+        self.assertEqual(fc.required_phrases("detailed hands"), ["detailed hands"])
+        self.assertEqual(fc.required_phrases("change girl shirt to red hoodie"), [])
+        msg = fc.build_user_message(REQS[5])
+        self.assertIn('word for word near the start of PROMPT: "pregnant belly", "pale skin"', msg)
+        self.assertIn('plain words "woman" or "man" for adults', msg)
+        bad_negative = "PROMPT: a girl with a rounded stomach, fair skin, photo\nADDITIONAL: N/A\nNEGATIVE: pregnant belly, blurry"
+        self.assertTrue(any("NEGATIVE contains what you asked for: pregnant belly" in m for m in misses(bad_negative, REQS[5])))
+        swapped = example(5).replace("pregnant belly", "rounded stomach").replace("pale skin", "fair skin")
+        self.assertTrue(any('Your words missing word for word: "pregnant belly", "pale skin"' in m
+                            for m in misses(swapped, REQS[5])))
+
+    def test_body_edit_tips(self):
+        md = fc.settings_markdown(REQS[5])
+        self.assertIn("(picked by Auto)", md)
+        self.assertIn("mask a little beyond where the new shape will reach", md)
+        self.assertIn("switch the method to Modify Content", md)
+        self.assertNotIn("beyond where", fc.settings_markdown(fc.InpaintRequest(idea="detailed hands", method="auto")))
+
+    def test_body_edits_are_for_adults(self):
+        bad = example(5).replace("a woman with a pregnant belly", "a girl with a pregnant belly")
+        self.assertTrue(any("is used in a body edit; the person is an adult" in m for m in misses(bad, REQS[5])))
+        for idea, blocked in (("pregnant belly, pale skin", False), ("pregnant belly on girl", True),
+                              ("girl pregnant belly", True), ("pregnant girl", True), ("girl's belly bigger", True),
+                              ("girl, pregnant belly", True), ("nude girl", True),
+                              ("pregnant woman next to girl, pregnant belly", False),
+                              ("muscular woman standing next to girl, pregnant belly on the woman, pale skin", False),
+                              ("change girl shirt to red hoodie", False), ("baby bump, pale skin", False),
+                              ("bigger baby bump", False)):
+            with self.subTest(idea):
+                self.assertEqual(bool(fc.blocked_reason(idea)), blocked)
+        self.assertIn("girl, boy or child", fc.blocked_reason("pregnant belly on girl"))
 
 
 class Installer(unittest.TestCase):

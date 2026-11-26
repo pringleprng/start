@@ -338,18 +338,33 @@ asked. **Re-check** works here too, and **🧪 POV self-test** runs three POV id
 
 ## Fooocus Inpaint (separate tab)
 
-Prompts for Fooocus's **Inpaint or Outpaint** tab. You still draw the mask in Fooocus; this tab writes the text.
+Inpainting prompts for Fooocus. You still draw the mask in Fooocus; this tab writes the text. Type what the masked
+area should become in a few words, for example **pregnant belly, pale skin**, and you get the best prompt for it:
+
+```
+PROMPT: a woman with a pregnant belly, pale skin, round full baby bump between a cropped grey top and low-rise jeans,
+        smooth natural skin texture, soft window light from the left, photo, sharp focus
+NEGATIVE: flat stomach, deformed belly, extra navel, mismatched skin tone, visible seams, blurry
+Method: Inpaint or Outpaint (default), picked by Auto. Tip: mask a little beyond where the bump will reach.
+```
 
 1. **Picture**: the image you will inpaint. **Mask** (optional): if you have the mask as a picture (white = the
    area Fooocus redraws, as in Fooocus's *Mask Upload*), add it and the model sees that area tinted red.
-2. **Method**: the same one you pick in Fooocus, with Fooocus's own names: *Inpaint or Outpaint (default)*,
-   *Improve Detail (face, hand, eyes, etc.)* or *Modify Content (add objects, change background, etc.)*, plus the
-   **Outpaint Direction** for the default method.
-3. **Area you will mask** in your words ("girl shirt", "the sky") and **what should be there**
-   ("change girl shirt to red hoodie", "add muscular woman holding stick").
+2. **What the masked area should become**, in your words: keywords ("pregnant belly, pale skin", "red hoodie",
+   "detailed hands") or a sentence ("add muscular woman holding stick"). Keywords are kept **word for word**,
+   near the start of the prompt, with only supporting words added (shape, texture, how it sits with the clothes,
+   the light and style of the picture). **Area you will mask** is optional.
+3. **Method**: **Auto** (default) picks Fooocus's method for the edit and says why: changing what is there (a body
+   part, clothes, hair) → *Inpaint or Outpaint (default)*, which keeps the skin tone, light and edges of the
+   picture; sharpening a face, eyes or hands → *Improve Detail*; adding something new, removing something or a new
+   background → *Modify Content*. Or pick one yourself. Outpainting is in its own section.
 4. **Generate Fooocus prompts**, then copy each box into Fooocus: **Prompt** (main prompt box), **Inpaint
    Additional Prompt** (only shown in Fooocus for Improve Detail and Modify Content) and **Negative Prompt**
-   (Settings tab).
+   (Settings tab). The tips under the settings say how to mask (for a bigger shape such as a pregnant belly, mask
+   a little beyond where it will reach) and what to try if the old shape shows through.
+
+Body edits are for adults: the person is called "woman" or "man" when you name nobody, and the tab writes no
+pregnancy, nude or underwear edits for a girl, boy or child.
 
 How it follows Fooocus (read from Fooocus 2.5.5's own code):
 

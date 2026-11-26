@@ -65,7 +65,7 @@ def setup():
         _engine()
 
 
-METHOD_BY_LABEL = {v: k for k, v in fc.METHODS.items()}
+METHOD_BY_LABEL = {fc.AUTO: "auto", **{v: k for k, v in fc.METHODS.items()}}
 NEGATIVE_BY_LABEL = {"Write one for this edit": "auto", "No negative prompt": "none"}
 
 
@@ -169,6 +169,10 @@ def generate(img, mask, method_label, outpaint, area, idea, style, negative, not
                                                "picture. Press *Load Inkling* above to load it again with its vision "
                                                "file, or describe the picture in *Picture notes*.")
         return
+    stop_reason = fc.blocked_reason(idea, area)
+    if stop_reason:
+        yield keep, keep, keep, keep, "", "", f"❌ {stop_reason}"
+        return
     try:
         encoded, marked = _encode(img, mask, blind)
         req = _request(method_label, outpaint, area, idea, style, negative, notes, len(encoded), marked)
@@ -240,8 +244,8 @@ def recheck(prompt, additional, negative, method_label, outpaint, area, idea, st
 
 SELFTEST = [
     # ideas that fit most pictures, so the tests check the Fooocus mechanics, not the picture
-    ("inpaint-sky", "Inpaint or Outpaint: a new sky, ADDITIONAL left empty",
-     dict(method="default", area="the sky", idea="make the sky a clear blue sky with a few small white clouds")),
+    ("body-keywords", "Auto: \"pregnant belly, pale skin\" word for word, Inpaint or Outpaint, ADDITIONAL empty",
+     dict(method="auto", area="her stomach", idea="pregnant belly, pale skin")),
     ("detail-face", "Improve Detail: a short detail phrase in ADDITIONAL",
      dict(method="detail", area="the face", idea="sharper face with clear eyes")),
     ("modify-bench", "Modify Content: only the new object in ADDITIONAL, nothing wanted in NEGATIVE",
@@ -289,9 +293,9 @@ def ui():
     e = _engine()
     gr.Markdown(
         "### Fooocus Inpaint\n"
-        "Prompts for Fooocus's **Inpaint or Outpaint** tab. Add the picture you will inpaint, say which area you "
-        "will mask and what should be there, pick the same method you will use in Fooocus, press **Generate**. "
-        "Model and settings are shared with the *H3 I2V Director* tab."
+        "Inpainting prompts for Fooocus. Add the picture, say in a few words what the masked area should become "
+        "(e.g. *pregnant belly, pale skin*) and press **Generate**: you get the Fooocus boxes, the method and its "
+        "settings, and tips for the mask. Model and settings are shared with the *H3 I2V Director* tab."
     )
     status_model = gr.Markdown(e.model_status())
     with gr.Row():
@@ -305,12 +309,14 @@ def ui():
                                height=280)
                 mask = gr.Image(type="pil", label="Mask (optional; white = the area Fooocus redraws)",
                                 sources=["upload", "clipboard"], height=280)
-            method = gr.Radio(list(fc.METHODS.values()), value=fc.METHODS["default"], label="Method (the same as in Fooocus)")
-            outpaint = gr.CheckboxGroup(list(fc.OUTPAINT), value=[], label="Outpaint Direction (optional)")
-            area = gr.Textbox(label="Area you will mask (your words)", max_lines=1,
-                              placeholder="e.g. her shirt, the girl's face, the sky, the empty space on the right")
-            idea = gr.Textbox(label="What should be there (your idea)", lines=3,
-                              placeholder="e.g. change girl shirt to red hoodie / add muscular woman holding stick")
+            idea = gr.Textbox(label="What the masked area should become (your words)", lines=3,
+                              placeholder="e.g. pregnant belly, pale skin / red hoodie / add muscular woman holding stick")
+            area = gr.Textbox(label="Area you will mask (optional; the model can tell from the picture and your words)",
+                              max_lines=1, placeholder="e.g. her stomach, girl shirt, the face, the sky")
+            method = gr.Radio([fc.AUTO] + list(fc.METHODS.values()), value=fc.AUTO,
+                              label="Method (pick the same one in Fooocus; Auto shows which and why)")
+            with gr.Accordion("Outpaint instead (extend the picture past its edges)", open=False):
+                outpaint = gr.CheckboxGroup(list(fc.OUTPAINT), value=[], label="Outpaint Direction")
             with gr.Row():
                 style = gr.Textbox(label="Style (optional)", placeholder="Leave empty to match the picture")
                 negative = gr.Radio(list(NEGATIVE_BY_LABEL), value="Write one for this edit", label="Negative prompt")
@@ -348,14 +354,11 @@ def ui():
         selftest_summary = gr.Markdown("")
         selftest_details = gr.Textbox(label="Prompts and findings", lines=12, interactive=False, show_copy_button=True)
 
-    def _method_changed(m, out):
-        req = _request(m, out, "", "", "", "Write one for this edit", "", 0, False)
-        return gr.update(visible=req.method == "default", value=out if req.method == "default" else []), \
-            fc.settings_markdown(req)
+    def _settings(m, out, a, i):
+        return fc.settings_markdown(_request(m, out, a, i, "", "Write one for this edit", "", 0, False))
 
-    method.change(_method_changed, [method, outpaint], [outpaint, settings], queue=False)
-    outpaint.change(lambda m, out: fc.settings_markdown(_request(m, out, "", "", "", "Write one for this edit", "", 0,
-                                                                 False)), [method, outpaint], settings, queue=False)
+    for trigger in (method.change, outpaint.change, idea.blur, area.blur):
+        trigger(_settings, [method, outpaint, area, idea], settings, queue=False)
     inputs = [img, mask, method, outpaint, area, idea, style, negative, notes]
     generate_btn.click(generate, inputs, [out_prompt, out_additional, out_negative, settings, report, thinking_box,
                                           status]).then(e.model_status, None, status_model, queue=False)
