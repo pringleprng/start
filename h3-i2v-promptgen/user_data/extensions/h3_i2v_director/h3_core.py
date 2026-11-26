@@ -384,7 +384,7 @@ def people_requirements(idea: str) -> list[str]:
     words = " and ".join(f'"{PEOPLE[p.cls][0]}"' for p in people)
     lines = [f"- People: exactly {' and '.join(parts)}. No more, no fewer, and never merge two people into one. "
              f"Use the words {words} for them every time, never another word for the same person, and add no ages "
-             "or age words (adult, child, young, little, \"of about eight\")."]
+             "or age words (adult, child, young, little, older, younger, \"of about eight\")."]
     labels = [f'"the {" ".join(p.adjectives + [PEOPLE[p.cls][0]])}"' for p in people if p.count == 1]
     total = sum(p.count for p in people)
     if labels and total > 1:
@@ -1250,12 +1250,12 @@ def people_checks(desc: str, idea: str) -> list[Check]:
                                        f"{_COUNT_WORDS.get(have, 'no') if have else 'no'} {sing if have == 1 else plural}.",
                                 repair=True))
         child = {"woman": "girl", "man": "boy"}.get(cls)
-        if (child in wanted and re.search(rf"\byoung {sing}\b", low)
-                and not re.search(rf"\byoung {sing}\b", (idea or "").lower())):
-            checks.append(Check(False, f"People: \"young {sing}\" appears, but your idea has a {child}; "
-                                       f"call her \"the {child}\"." if child == "girl" else
-                                       f"People: \"young {sing}\" appears, but your idea has a {child}; "
-                                       f"call him \"the {child}\".", repair=True))
+        alts = "|".join((sing, *PEOPLE[cls][2]))
+        grown_up = re.search(rf"\b(?:young|younger|youthful|teenage|teen)\s+(?:{alts})\b", low)
+        if child in wanted and grown_up and grown_up.group(0) not in (idea or "").lower():
+            pron = "her" if child == "girl" else "him"
+            checks.append(Check(False, f"People: \"{grown_up.group(0)}\" appears, but your idea has a {child}; "
+                                       f"call {pron} \"the {child}\".", repair=True))
 
     # two of the same kind must be told apart
     for p in people:

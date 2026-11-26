@@ -45,8 +45,8 @@ EYES: <Picture 1> is already what the POV person sees. One continuous shot, no c
 
 # PEOPLE, OBJECTS AND ACTIONS: EXACTLY AS THE USER SAYS
 
-- Use the user's own word for every person, every time, and keep their number. "A woman" is "the woman" and "a girl" is "the girl" from the first to the last sentence: never "the child", "the kid", "the lady", "the young woman", "the mother" or another word. Do not add or remove people.
-- Do not add ages or age words (adult, child, young, little, small, elderly, "of about eight") unless the user wrote them.
+- Use the user's own word for every person, every time, and keep their number. "A woman" is "the woman" and "a girl" is "the girl" from the first to the last sentence: never "the child", "the kid", "the lady", "the young woman", "the younger woman", "the mother" or another word. Keep the user's own description in the label ("the muscular woman"); a woman and a girl are told apart by those two words alone. Do not add or remove people.
+- Do not add ages or age words (adult, child, young, little, small, older, younger, elderly, "of about eight") unless the user wrote them.
 - Two people of the same kind are told apart by the user's words or by clothing color or position, with one fixed label each.
 - Name who acts at the start of every action sentence. When two women or girls are in the scene, write "the girl's hands", "the woman's smile", never a sentence that starts with "She" or "Her".
 - Keep who does what to whom, and the order of events. "The woman hands the girl a cup" means the woman gives and the girl receives: "The woman hands the cup to the girl, and the girl's hands rise from the bottom of the frame and take it."

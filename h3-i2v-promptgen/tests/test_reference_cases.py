@@ -15,7 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "user_data" / "exte
 import h3_core as core  # noqa: E402
 import h3_selftest as st  # noqa: E402
 
-CASES = {c.name: c for c in st.CASES}
+SELFTEST_CASES = {c.name: c for c in st.CASES}
+TWO_WOMEN = st.Case("two-women", "two women told apart by the user's own words",
+                    dict(mode="T2VA", idea="two women sit at a cafe table and the older woman pours tea for the younger woman",
+                         duration=8))
+CASES = {**SELFTEST_CASES, "two-women": TWO_WOMEN}
 
 REFERENCE = {
     "text-basic": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a low wide shot frames a red fox standing in fresh, knee-deep snow at the edge of a pine forest at sunrise, its thick orange coat glowing against the blue-white snow while low golden light rakes across the drifts. The fox lifts each black paw high and walks to the right through the powder, leaving a neat line of prints as loose snow sprays from its legs. The camera tracks alongside it at the same distance. Halfway across the frame the fox stops, its bushy white-tipped tail settling behind it, turns its head over its shoulder and looks straight back into the lens, ears upright and breath steaming in the cold air.
@@ -47,6 +51,12 @@ non_diegetic_music: N/A""",
 overall_soundscape: Birds chirp in the garden and leaves rustle in a light breeze. The enamel cup clinks softly against a ring on the woman's finger as it changes hands, followed by a small slurp.
 
 non_diegetic_music: A light ukulele pattern at a moderate tempo with soft finger snaps.""",
+
+    "muscular-woman-and-girl": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames a muscular woman and a girl standing next to each other on a sunlit forest path. The muscular woman, with broad shoulders, a dark ponytail and a grey tank top, stands on the left, holding a smooth wooden stick. The girl, with short curly hair and a yellow raincoat, stands on the right. The camera holds a static shot. At first the muscular woman turns to the girl and holds out the stick. Midway, the muscular woman hands the stick to the girl, and the girl takes the stick with both hands. In the last second the girl lifts the stick and taps it on the ground, and the muscular woman rests her hands on her hips.
+
+overall_soundscape: Birdsong and leaves rustling in a light breeze. Soft footsteps on the gravel path and a dull tap as the stick touches the ground.
+
+non_diegetic_music: A light acoustic guitar pattern at a moderate tempo with soft hand percussion.""",
 
     "two-women": """integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium shot frames two women who sit across from each other at a small round cafe table by a sunny window. The older woman, with silver hair in a low bun and a burgundy cardigan, sits on the left. The younger woman, with a dark brown bob and a white blouse, sits on the right. A white porcelain teapot and two cups stand between them. The camera holds a static shot. The older woman lifts the teapot with both hands and pours tea for the younger woman, a thin amber stream filling the cup in front of her. The younger woman smiles, wraps her fingers around the warm cup and nods her thanks. The older woman sets the teapot down and folds her hands on the table.
 
@@ -81,6 +91,7 @@ def messages(result):
 class ReferenceAnswers(unittest.TestCase):
     def test_every_case_has_a_reference(self):
         self.assertEqual(sorted(REFERENCE), sorted(CASES))
+        self.assertNotIn("two-women", SELFTEST_CASES)   # the self-test uses "woman" and "girl", like the user
 
     def test_references_pass_everything(self):
         for name, text in REFERENCE.items():
@@ -229,6 +240,20 @@ class BrokenAnswersAreCaught(unittest.TestCase):
             "lifts the teapot with both hands and pours tea for the younger woman, a thin amber stream filling the cup "
             "in front of her", "sips her tea")
         self.caught("two-women", text, "pours tea for the younger woman")
+
+    def test_muscular_woman_and_girl_labels(self):
+        msg = core.build_user_message(st.make_request(CASES["muscular-woman-and-girl"]))
+        self.assertIn('Call them "the muscular woman" and "the girl" every time', msg)
+        self.assertIn("older, younger", msg)
+        for wrong, needle in (("the younger woman", 'call her "the girl"'), ("the young lady", 'call her "the girl"'),
+                              ("the teenage woman", 'call her "the girl"')):
+            with self.subTest(wrong):
+                text = REFERENCE["muscular-woman-and-girl"].replace("The girl, with", wrong.capitalize() + ", with")
+                text = text.replace("the girl", wrong)
+                self.caught("muscular-woman-and-girl", text, needle)
+        text = REFERENCE["muscular-woman-and-girl"].replace("muscular woman", "older woman")
+        self.caught("muscular-woman-and-girl", text, "muscular")
+        self.caught("muscular-woman-and-girl", text, "ages were added")
 
     def test_age_added(self):
         text = REFERENCE["woman-and-girl"].replace("The girl, with curly black hair",

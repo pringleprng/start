@@ -178,6 +178,7 @@ class Download(unittest.TestCase):
         finally:
             inst.time.sleep = old_sleep
             srv.shutdown()
+            srv.server_close()
         self.assertEqual(dest.read_bytes(), data)
         self.assertEqual(state["calls"], 3)
         self.assertIsNone(state["ranges"][0])
@@ -202,6 +203,7 @@ class Download(unittest.TestCase):
                 inst.download(f"http://127.0.0.1:{srv.server_address[1]}/x", Path(tempfile.mkdtemp()) / "x", 10)
         finally:
             srv.shutdown()
+            srv.server_close()
 
 
 class DesktopEntry(unittest.TestCase):

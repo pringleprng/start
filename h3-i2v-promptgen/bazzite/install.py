@@ -127,6 +127,7 @@ def get_json(url: str):
         with urllib.request.urlopen(req, timeout=60) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
+        exc.close()
         if exc.code == 403 and "github" in url:
             raise InstallError(f"GitHub refused {url} (rate limit?). Wait an hour or set GITHUB_TOKEN.") from exc
         if exc.code in (401, 403) and url.startswith(HF):
@@ -191,6 +192,8 @@ def download(url: str, dest: Path, size: int | None = None) -> Path:
             reason = f"connection closed at {now / 1e9:.2f} of {expected / 1e9:.2f} GB"
         except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
             print()
+            if isinstance(exc, urllib.error.HTTPError):
+                exc.close()
             if isinstance(exc, urllib.error.HTTPError) and exc.code == 416 and size and have == size:
                 part.replace(dest)
                 return dest

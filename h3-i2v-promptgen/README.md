@@ -228,14 +228,20 @@ exactly one woman and one girl, called "the woman" and "the girl" every time, ea
 - a "She …" sentence when two females are in the scene and it could mean either;
 - two people of the same kind not told apart.
 
-Two women are told apart by your own words ("the older woman" / "the younger woman") or by clothing or
+A woman and a girl are told apart by those two words alone: write "woman" and "girl" (plus your own words if
+you like, e.g. "muscular woman") and the prompt calls them exactly "the muscular woman" and "the girl" every
+time. It never turns the girl into "the younger woman" or the woman into "the older woman", never adds ages,
+and the check flags it if the model does. Quick typing works: "muscular women standing next to girl, muscular
+woman hands girl stick" is one muscular woman and one girl, and the stick goes from the woman to the girl.
+Only two people of the same kind (two women) need more to tell them apart: your own words, or clothing or
 position ("the woman in the red coat"), the way MiniMax's own example prompts label each person. This check
 works for English ideas (woman, man, girl, boy, child, baby, teenager, mother, father, daughter, son,
 grandmother, …); ideas in other languages still get the rules, without the extra check.
 
 **🧪 Self-test** (accordion under the buttons) runs eight basic plain-language ideas through your loaded
 model, exactly like *Generate*, and shows a pass/fail table. They cover a simple idea, a static camera with no
-music, two shots with a spoken line, complete silence, a woman handing a girl a cup, two women told apart, and
+music, two shots with a spoken line, complete silence, a woman handing a girl a cup, a muscular woman handing a
+girl a stick ("the muscular woman" and "the girl" kept exactly), and
 with a picture in *Picture 1* also push in and a Spanish line. Run it once after installing to see how well Inkling follows the H3 rules on your machine.
 
 **Thinking**: *off* is fastest and fine for most ideas. *low* or *medium* lets Inkling plan first, which helps

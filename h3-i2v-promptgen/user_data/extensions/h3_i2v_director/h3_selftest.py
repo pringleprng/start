@@ -34,9 +34,10 @@ CASES = [
          dict(mode="T2VA", idea="snow falls on an empty playground at night", duration=5, silent=True)),
     Case("woman-and-girl", "a woman and a girl stay a woman and a girl, and the woman hands the cup to the girl",
          dict(mode="T2VA", idea="a woman standing next to a girl, the woman hands the girl a cup", duration=6)),
-    Case("two-women", "two women told apart (older / younger) and the right one pours the tea",
-         dict(mode="T2VA", idea="two women sit at a cafe table and the older woman pours tea for the younger woman",
-              duration=8)),
+    Case("muscular-woman-and-girl", "\"the muscular woman\" and \"the girl\" stay exactly that, and the stick goes "
+                                    "from the woman to the girl",
+         dict(mode="T2VA", idea="a muscular woman standing next to a girl, the muscular woman hands the girl a stick",
+              duration=6)),
     Case("picture-push-in", "image to video: the picture as first frame, push in with small amplitude at slow speed",
          dict(mode="I2VA", idea="the person in the picture smiles and waves at the camera", duration=5,
               camera="Push In", amplitude="small", speed="slow"), needs_picture=True),
