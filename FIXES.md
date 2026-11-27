@@ -146,6 +146,8 @@ feed, playback falls back to upstream behaviour (recommendation).
 **Files**
 - `common/.../app/models/data/Video.java`: first line of `isSectionPlaylistEnabled()` (1 hook)
 - new: `common/.../dumbtube/SubscriptionsAutoplay.java`, string in `dumbtube_strings.xml`
+- test: `SubscriptionsAutoplayFlowTest` runs SmartTube's real `SuggestionsController` on a Subscriptions page
+  (with LIVE!'s stream filter) and checks what plays next
 
 **Drop it when:** upstream gets a per-section "continue with the next video of this section"
 setting, or makes the section playlist the default for Subscriptions. Check `Video.isSectionPlaylistEnabled()`
