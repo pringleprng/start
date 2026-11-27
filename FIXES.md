@@ -143,6 +143,12 @@ so they behave as before. Videos casted from a phone are excluded. Switch: Setti
 come first. Upcoming/premiere items are skipped (upstream logic). After the very last video of the
 feed, playback falls back to upstream behaviour (recommendation).
 
+**Keeps the feed alive while you watch** (`[DumbTube] Subscriptions autoplay: keep the feed page alive`):
+a video only holds its feed page weakly; the Subscriptions screen behind the player is what normally keeps
+the page alive. When Android frees that screen during playback (low memory on TVs) or it reloads, the
+next video lost its page and a YouTube recommendation (or nothing) played instead. The page of the playing
+feed video is now held by `SubscriptionsAutoplay` until you play something from elsewhere.
+
 **Files**
 - `common/.../app/models/data/Video.java`: first line of `isSectionPlaylistEnabled()` (1 hook)
 - new: `common/.../dumbtube/SubscriptionsAutoplay.java`, string in `dumbtube_strings.xml`

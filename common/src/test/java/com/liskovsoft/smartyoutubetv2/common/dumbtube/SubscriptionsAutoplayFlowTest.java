@@ -20,6 +20,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -84,6 +85,30 @@ public class SubscriptionsAutoplayFlowTest {
         nextAfter(Video.from(feed.getVideos().get(0)));
         nextAfter(Video.from(feed.getVideos().get(1)));
         assertEquals("b", nextAfter(Video.from(feed.getVideos().get(0))));
+    }
+
+    @Test
+    public void keepsGoingWhenTheSubscriptionsScreenIsFreed() throws Exception {
+        VideoGroup feed = feed(upload("a"), upload("b"), upload("c"));
+        Video first = Video.from(feed.getVideos().get(0));
+        Video second = feed.getVideos().get(1); // what autoplay opens next (taken from the feed itself)
+
+        assertEquals("b", nextAfter(first));
+
+        // While "a" plays, Android frees the browse screen (or it reloads): its adapter held the only
+        // strong reference to the feed group; videos only hold their group weakly.
+        WeakReference<VideoGroup> groupRef = new WeakReference<>(feed);
+        feed = null;
+        collectGarbage(groupRef);
+
+        assertEquals("c", nextAfter(second));
+    }
+
+    private static void collectGarbage(WeakReference<?> watched) throws InterruptedException {
+        for (int i = 0; i < 20 && watched.get() != null; i++) {
+            System.gc();
+            Thread.sleep(20);
+        }
     }
 
     /**
