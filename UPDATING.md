@@ -6,7 +6,7 @@ hook lines if they conflict, then build, release and install.
 
 Upstream releases: https://github.com/yuliskov/SmartTube/releases. Stable tags end in `s`
 (e.g. `32.80s` = "32.80 Stable"); tags without `s` are betas. DumbTube follows the **stable** tags. A beta
-can be integrated on request (32.83 was); the daily task then waits for the next stable tag above it.
+can be integrated on request (32.83 and 32.85 were); the daily task then waits for the next stable tag above it.
 
 ## Automatic updates (scheduled task)
 
@@ -81,7 +81,7 @@ then make `dumbtube` the default branch on GitHub and delete the old one.)
 ```bash
 git fetch upstream --tags
 git tag -l '*s' --sort=-creatordate | head -5     # newest stable tags, e.g. 32.81s
-OLD=32.83         # the base recorded in FIXES.md ("Base: ...")
+OLD=32.85         # the base recorded in FIXES.md ("Base: ...")
 NEW=32.84s        # the new stable tag
 ```
 

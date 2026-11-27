@@ -9,8 +9,8 @@ git log --oneline --grep='^\[DumbTube\]'          # all DumbTube commits
 grep -rn "\[DumbTube\]" --include=*.java .         # every hook inside upstream files
 ```
 
-**Base:** all changes were last applied to upstream release **32.83** (a SmartTube beta tag, integrated
-on request; upstream commit `5ba7f887f`, versionCode 2473; before that 32.80s). Update the "Last applied to" column after each
+**Base:** all changes were last applied to upstream release **32.85** (a SmartTube beta tag, integrated
+on request; upstream commit `ccc6800f9`, versionCode 2475; before that 32.83, 32.80s). Update the "Last applied to" column after each
 upstream merge (see [UPDATING.md](UPDATING.md)).
 
 Most code lives in new files: `common/.../common/dumbtube/*` (Java),
@@ -20,21 +20,21 @@ fully qualified class name, so no import lines change.
 
 | # | Change | Last applied to |
 |---|--------|-----------------|
-| 1 | [Rebrand + fork updater](#1-rebrand-to-dumbtube--fork-update-checker) | 32.83 |
-| 2 | [Settings tile + prefs store](#2-dumbtube-settings-tile-and-prefs-store-infrastructure) (infrastructure) | 32.83 |
-| 3 | [Per-channel captions / auto-translate](#3-per-channel-captions-and-auto-translate) | 32.83 |
-| 4 | [Subscriptions feed autoplay order](#4-subscriptions-feed-autoplay-order) | 32.83 |
-| 5 | [Text, player text and caption brightness](#5-text-player-text-and-caption-brightness) | 32.83 |
-| 6 | [OLED theme (default), focus/accent colors](#6-oled-theme-default-with-focus-and-accent-colors) | 32.83 |
-| 7 | [Release CI, Termux installer, docs](#7-release-ci-termux-installer-docs) | 32.83 |
-| 8 | [Top bar icons: no circles, own brightness](#8-top-bar-icons-no-circle-backgrounds-own-brightness) | 32.83 |
-| 9 | [Clock hidden by default](#9-top-right-clock-hidden-by-default) | 32.83 |
-| 10 | [Card video length badge style](#10-card-video-length-badge-outlined-text-color-brightness) | 32.83 |
-| 11 | [LIVE! sidebar section](#11-live-sidebar-section-live-and-past-streams-of-subscriptions) | 32.83 |
-| 12 | [Sidebar icons only + icon size](#12-sidebar-icons-only-mode-and-icon-size) | 32.83 |
-| 13 | [Content starts higher without the clock](#13-content-area-starts-higher-when-the-clock-is-hidden) | 32.83 |
-| 14 | [Cards per line instead of Video grid scale](#14-cards-per-line-instead-of-video-grid-scale) | 32.83 |
-| 15 | [Pinned channels show the channel icon](#15-pinned-channels-show-the-channel-icon) | 32.83 |
+| 1 | [Rebrand + fork updater](#1-rebrand-to-dumbtube--fork-update-checker) | 32.85 |
+| 2 | [Settings tile + prefs store](#2-dumbtube-settings-tile-and-prefs-store-infrastructure) (infrastructure) | 32.85 |
+| 3 | [Per-channel captions / auto-translate](#3-per-channel-captions-and-auto-translate) | 32.85 |
+| 4 | [Subscriptions feed autoplay order](#4-subscriptions-feed-autoplay-order) | 32.85 |
+| 5 | [Text, player text and caption brightness](#5-text-player-text-and-caption-brightness) | 32.85 |
+| 6 | [OLED theme (default), focus/accent colors](#6-oled-theme-default-with-focus-and-accent-colors) | 32.85 |
+| 7 | [Release CI, Termux installer, docs](#7-release-ci-termux-installer-docs) | 32.85 |
+| 8 | [Top bar icons: no circles, own brightness](#8-top-bar-icons-no-circle-backgrounds-own-brightness) | 32.85 |
+| 9 | [Clock hidden by default](#9-top-right-clock-hidden-by-default) | 32.85 |
+| 10 | [Card video length badge style](#10-card-video-length-badge-outlined-text-color-brightness) | 32.85 |
+| 11 | [LIVE! sidebar section](#11-live-sidebar-section-live-and-past-streams-of-subscriptions) | 32.85 |
+| 12 | [Sidebar icons only + icon size](#12-sidebar-icons-only-mode-and-icon-size) | 32.85 |
+| 13 | [Content starts higher without the clock](#13-content-area-starts-higher-when-the-clock-is-hidden) | 32.85 |
+| 14 | [Cards per line instead of Video grid scale](#14-cards-per-line-instead-of-video-grid-scale) | 32.85 |
+| 15 | [Pinned channels show the channel icon](#15-pinned-channels-show-the-channel-icon) | 32.85 |
 
 ---
 
