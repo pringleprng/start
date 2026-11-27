@@ -198,9 +198,43 @@ def _guard_textgen_page_load():
         shared.settings["mode"] = "instruct"
 
 
+_model_loading = threading.Lock()
+
+
+def _one_load_at_a_time():
+    """Two loads at once start two llama-servers that each size themselves to the free VRAM, and one of
+    them runs out of memory (TextGen's own Load button pressed while the tab loads Inkling, for example).
+    A load that starts while another runs waits for it, and keeps that model if it asked for the same one."""
+    from modules import models
+
+    original = models.load_model
+    if getattr(original, "_h3_serial", False):
+        return
+
+    def load_model(model_name, loader=None):
+        waited = not _model_loading.acquire(blocking=False)
+        if waited:
+            logger.warning(f"H3 I2V Director: a model is already loading; {model_name} waits for it")
+            _model_loading.acquire()
+        try:
+            if waited and shared.model is not None:
+                if shared.model_name == model_name:
+                    return shared.model, shared.tokenizer
+                models.unload_model()
+            return original(model_name, loader)
+        finally:
+            _model_loading.release()
+
+    load_model._h3_serial = True
+    for module in list(sys.modules.values()):  # modules that did `from modules.models import load_model`
+        if getattr(module, "load_model", None) is original:
+            module.load_model = load_model
+
+
 def setup():
     _load_settings()
     _guard_textgen_page_load()
+    _one_load_at_a_time()
     path = _find_llama_server()
     if path:
         _use_llama_server(path)
