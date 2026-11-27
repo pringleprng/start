@@ -708,7 +708,7 @@ def update_cmd_flags(user_data: Path) -> None:
     say(f"  ✓ {path} enables the tabs (H3 I2V Director, H3 POV: her eyes, Fooocus Inpaint)")
 
 
-def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profile: str | None,
+def write_settings(user_data: Path, server: Path | None, model: str, mmproj: str, profile: str | None,
                    budget: float | None) -> dict:
     """Point the tab at the new llama-server and model. Choices made in the tab (profile, budget,
     auto-load) are kept on a re-run unless --profile / --vram-budget are given."""
@@ -717,7 +717,8 @@ def write_settings(user_data: Path, server: Path, model: str, mmproj: str, profi
         settings = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         settings = {}
-    settings["llama_server_path"] = str(server)
+    if server:
+        settings["llama_server_path"] = str(server)
     settings["gpu_profile"] = profile or settings.get("gpu_profile") or "fit"
     settings["vram_budget_gb"] = budget if budget is not None else settings.get("vram_budget_gb", DEFAULT_BUDGET_GB)
     settings.setdefault("autoload", True)
@@ -805,10 +806,22 @@ def main(argv=None) -> int:
         ram_gb = check_ram()
         install_textgen(base, downloads, gpu, args.textgen_tag)
         user_data = base / "user_data"
-        server = install_llama(user_data, downloads, gpu, args.llama_tag)
+        # llama.cpp and the model may fail (a missing release, an unreachable download): finish the rest anyway,
+        # so TextGen, the tabs and the start script are there, and say what to redo at the end
+        problems = []
+        server = None
+        try:
+            server = install_llama(user_data, downloads, gpu, args.llama_tag)
+        except InstallError as exc:
+            warn(f"llama.cpp: {exc}")
+            problems.append(f"llama.cpp (needed to load Inkling): {exc}")
         model = mmproj = ""
         if not args.skip_model:
-            model, mmproj = install_model(user_data, args.repo, args.quant, ram_gb, args.repo == DEFAULT_REPO)
+            try:
+                model, mmproj = install_model(user_data, args.repo, args.quant, ram_gb, args.repo == DEFAULT_REPO)
+            except InstallError as exc:
+                warn(f"model: {exc}")
+                problems.append(f"Inkling 2 Mini download: {exc}")
         install_h3_files(user_data, args.source_repo, args.branch)
         update_cmd_flags(user_data)
         settings = write_settings(user_data, server, model, mmproj, args.profile, args.vram_budget)
@@ -826,6 +839,14 @@ def main(argv=None) -> int:
             "say where it failed.")
         return 1
 
+    if problems:
+        step("Installed, with problems")
+        for prob in problems:
+            say(f"  ✗ {prob}")
+        say(f"TextGen and the tabs are installed; start them with {script} --browser.")
+        say("Fix the problem above (or wait if a download was unreachable) and run this installer again: finished "
+            "steps are skipped.")
+        return 1
     step("Done")
     say(f"Start 'TextGen H3 Director' from the app menu, or run {script}")
     how = f"within {settings['vram_budget_gb']:g} GB of VRAM" if settings["gpu_profile"] == "fit" else "on the whole GPU"

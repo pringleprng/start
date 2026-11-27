@@ -246,6 +246,48 @@ class Settings(unittest.TestCase):
         self.assertEqual((s["gpu_profile"], s["vram_budget_gb"]), ("fit", 7.0))
 
 
+class FinishesTheRest(unittest.TestCase):
+    """A failed llama.cpp or model step must not leave the user without TextGen, the tabs and the start script."""
+
+    def test_model_and_llama_failures_still_install_the_tabs(self):
+        calls = []
+        saved = {}
+        fakes = {
+            "check_gpu": lambda: {"name": "", "driver": "", "driver_major": 0, "compute_cap": "", "vram_gb": 0.0},
+            "check_space": lambda base, need: None,
+            "check_ram": lambda: 16.0,
+            "install_textgen": lambda *a: calls.append("textgen"),
+            "install_llama": lambda *a: (_ for _ in ()).throw(inst.InstallError("no release yet")),
+            "install_model": lambda *a: (_ for _ in ()).throw(inst.InstallError("repository not reachable")),
+            "install_h3_files": lambda *a: calls.append("tabs"),
+            "update_cmd_flags": lambda *a: calls.append("flags"),
+            "write_settings": lambda *a: (calls.append("settings"), {"gpu_profile": "fit", "vram_budget_gb": 6.5,
+                                                                      "autoload": True})[1],
+            "write_launchers": lambda *a: (calls.append("launchers"), Path("/x/start-h3-director.sh"))[1],
+        }
+        for name, fake in fakes.items():
+            saved[name] = getattr(inst, name)
+            setattr(inst, name, fake)
+        try:
+            code = inst.main(["--dir", tempfile.mkdtemp(), "--no-desktop"])
+        finally:
+            for name, real in saved.items():
+                setattr(inst, name, real)
+        self.assertEqual(code, 1)
+        self.assertEqual(calls, ["textgen", "tabs", "flags", "settings", "launchers"])
+
+    def test_settings_without_a_new_llama_server_keep_the_old_path(self):
+        import json
+        ud = Path(tempfile.mkdtemp())
+        (ud / "extensions" / "h3_i2v_director").mkdir(parents=True)
+        inst.write_settings(ud, Path("/x/llama-b12675/llama-server"), "M.gguf", "P.gguf", None, None)
+        s = inst.write_settings(ud, None, "", "", None, None)
+        self.assertEqual(s["llama_server_path"], "/x/llama-b12675/llama-server")
+        ud2 = Path(tempfile.mkdtemp())
+        (ud2 / "extensions" / "h3_i2v_director").mkdir(parents=True)
+        self.assertNotIn("llama_server_path", inst.write_settings(ud2, None, "", "", None, None))
+
+
 class CmdFlags(unittest.TestCase):
     def _run(self, text):
         d = Path(tempfile.mkdtemp())
