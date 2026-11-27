@@ -1,6 +1,8 @@
 """Tests for the Bazzite installer's pure parts."""
 
+import contextlib
 import importlib.util
+import io
 import sys
 import tempfile
 import unittest
@@ -108,13 +110,28 @@ class PickReleases(unittest.TestCase):
                                                       _asset("cudart-llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz")]}]}
         asked = []
         real = inst.releases
-        inst.releases = lambda repo, tag="latest", page=1, per_page=30: asked.append(page) or pages.get(page, [])
+        inst.releases = lambda repo, tag="latest", page=1, per_page=30, pre=False: asked.append(page) or pages.get(page, [])
         try:
-            name, main, _ = inst.find_llama_release("latest", ("12", "13"))
+            name, main, _, _ = inst.find_llama_release("latest", ("12", "13"))
         finally:
             inst.releases = real
         self.assertEqual((name, asked), ("b12675", [1, 2]))
         self.assertEqual(main["name"], "llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz")
+
+    def test_llama_known_good_build_when_the_list_shows_none(self):
+        real = inst.releases
+        for fake in (lambda *a, **k: [], lambda *a, **k: (_ for _ in ()).throw(inst.InstallError("GitHub refused"))):
+            inst.releases = fake
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    name, main, runtime = inst.choose_llama("latest", ("12", "13"))
+            finally:
+                inst.releases = real
+            self.assertEqual(name, "b12675")
+            self.assertEqual(main["browser_download_url"], "https://github.com/ggml-org/llama.cpp/releases/download/"
+                                                           "b12675/llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz")
+            self.assertEqual(runtime["name"], "cudart-llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz")
+        self.assertEqual(inst.known_good_llama(("13",))[1]["name"], "llama-b12675-bin-ubuntu-cuda-13.5-x64.tar.gz")
 
     def test_llama_never_older_than_the_inkling_fixes(self):
         old = [r for r in self.LLAMA if r["tag_name"] in ("b12638", "v1.0.0")]

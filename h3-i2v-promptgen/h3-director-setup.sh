@@ -79,6 +79,10 @@ PYPI = os.environ.get("H3_PYPI", "https://pypi.org")
 MIN_LLAMA_BUILD = 12653          # 23 Nov 2026: Inkling 2 tokenizer fix (#32799) and looped-MoE expert fix (#32807)
 MIN_DRIVER_BLACKWELL = 570       # RTX 50-series / CUDA 12.8
 MIN_DRIVER_CUDA13 = 580
+# used when GitHub's release list shows no usable build (checked: has the Linux CUDA 12.8 and 13.5 files
+# and loads Inkling 2's inkling2 and inkling2_loop architectures)
+KNOWN_GOOD_LLAMA = ("b12675", {"12": "12.8", "13": "13.5"})
+GITHUB_DOWNLOADS = os.environ.get("H3_GITHUB_DOWNLOADS", "https://github.com")
 DEFAULT_REPO = "Abiray/Inkling-2-Mini-Uncensored-GGUF"
 # other uncensored GGUF uploads, searched in this order when --quant auto needs a size the first lacks
 FALLBACK_REPOS = ["AtomicChat/Inkling-2-Mini-Uncensored-GGUF", "KookiesXy/Inkling-2-Mini-Uncensored-GGUF",
@@ -1435,12 +1439,12 @@ def auto_size_limit_gb(ram_gb: float) -> float:
 # GitHub releases
 # --------------------------------------------------------------------------------------
 
-def releases(repo: str, tag: str = "latest", page: int = 1, per_page: int = 30) -> list[dict]:
+def releases(repo: str, tag: str = "latest", page: int = 1, per_page: int = 30, pre: bool = False) -> list[dict]:
     """The given release, or one page of the recent releases newest first (some releases lack some files)."""
     if tag != "latest":
         return [get_json(f"{GITHUB_API}/repos/{repo}/releases/tags/{tag}")] if page == 1 else []
     found = get_json(f"{GITHUB_API}/repos/{repo}/releases?per_page={per_page}&page={page}")
-    return [r for r in found if not r.get("draft") and not r.get("prerelease")]
+    return [r for r in found if not r.get("draft") and (pre or not r.get("prerelease"))]
 
 
 def pick_asset(release: dict, pattern: str) -> dict | None:
@@ -1551,23 +1555,51 @@ def pick_llama_release(rels: list[dict], majors: tuple[str, ...] = ("12", "13"))
     return "", None, None
 
 
-def find_llama_release(tag: str, majors: tuple[str, ...], pages: int = 5) -> tuple[str, dict | None, dict | None]:
-    """Look back page by page: the newest releases often have no Linux files for days."""
+def find_llama_release(tag: str, majors: tuple[str, ...], pages: int = 5) -> tuple[str, dict | None, dict | None, str]:
+    """Look back page by page: the newest releases often have no Linux files for days.
+    The 4th value says what was looked at, for the message when nothing fits."""
+    seen = []
     for page in range(1, pages + 1):
-        rels = releases("ggml-org/llama.cpp", tag, page, 100)
+        rels = releases("ggml-org/llama.cpp", tag, page, 100, pre=True)
+        seen += [r.get("tag_name", "?") for r in rels]
         found = pick_llama_release(rels, majors)
         builds = [int(r["tag_name"][1:]) for r in rels if re.fullmatch(r"b\d+", r.get("tag_name", ""))]
         if found[0] or not rels or (builds and min(builds) < MIN_LLAMA_BUILD):
-            return found
-    return "", None, None
+            break
+    seen_text = f"{len(seen)} releases, {seen[0]} to {seen[-1]}" if seen else "no releases"
+    return (*found, seen_text) if found[0] else ("", None, None, seen_text)
+
+
+def known_good_llama(majors: tuple[str, ...]) -> tuple[str, dict, dict]:
+    name, versions = KNOWN_GOOD_LLAMA
+    ver = versions[majors[0]]
+    files = [f"llama-{name}-bin-ubuntu-cuda-{ver}-x64.tar.gz", f"cudart-llama-{name}-bin-ubuntu-cuda-{ver}-x64.tar.gz"]
+    main, runtime = ({"name": f, "size": None,
+                      "browser_download_url": f"{GITHUB_DOWNLOADS}/ggml-org/llama.cpp/releases/download/{name}/{f}"}
+                     for f in files)
+    return name, main, runtime
+
+
+def choose_llama(tag: str, majors: tuple[str, ...]) -> tuple[str, dict, dict]:
+    """The newest usable release; else (the list is unreachable or shows none) the known good build."""
+    try:
+        name, main, runtime, seen = find_llama_release(tag, majors)
+    except InstallError as exc:
+        if tag != "latest":
+            raise
+        name, seen = "", str(exc)
+    if name:
+        return name, main, runtime
+    if tag != "latest":
+        raise InstallError(f"llama.cpp release {tag} has no Linux CUDA build ({seen})")
+    name, main, runtime = known_good_llama(majors)
+    say(f"  … no Linux CUDA build found in GitHub's release list ({seen}); using {name}")
+    return name, main, runtime
 
 
 def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path:
     step("llama.cpp with Inkling 2 support (CUDA)")
-    name, main, runtime = find_llama_release(tag, llama_cuda_majors(gpu["driver_major"]))
-    if not name:
-        raise InstallError(f"no llama.cpp release b{MIN_LLAMA_BUILD} or newer with a Linux CUDA build found; "
-                           "new releases appear every few hours, try again later")
+    name, main, runtime = choose_llama(tag, llama_cuda_majors(gpu["driver_major"]))
     cudart = "libcudart.so." + re.search(r"-cuda-(\d+)\.", main["name"]).group(1)
     folder = user_data / "llama-cpp" / f"llama-{name}"
     server = folder / "llama-server"
