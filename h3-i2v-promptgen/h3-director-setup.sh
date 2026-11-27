@@ -34,7 +34,7 @@ installed system-wide, so it suits Bazzite's read-only system.
 What it does:
   1. checks the NVIDIA driver and GPU (nvidia-smi)
   2. TextGen portable (CUDA build) from github.com/oobabooga/textgen
-  3. llama.cpp (CUDA 12.x build + its CUDA runtime) from github.com/ggml-org/llama.cpp,
+  3. llama.cpp (CUDA 12.x or 13.x build + its CUDA runtime) from github.com/ggml-org/llama.cpp,
      new enough for Inkling 2, placed where the H3 tab makes TextGen use it
   4. Inkling 2 Mini Uncensored GGUF + its mmproj (vision) from Hugging Face; the quant is chosen
      by size so that it fits your RAM + VRAM next to Fooocus (about 10-11 GB with 16 GB RAM)
@@ -1435,11 +1435,11 @@ def auto_size_limit_gb(ram_gb: float) -> float:
 # GitHub releases
 # --------------------------------------------------------------------------------------
 
-def releases(repo: str, tag: str = "latest") -> list[dict]:
-    """The given release, or the recent releases newest first (some releases lack some files)."""
+def releases(repo: str, tag: str = "latest", page: int = 1, per_page: int = 30) -> list[dict]:
+    """The given release, or one page of the recent releases newest first (some releases lack some files)."""
     if tag != "latest":
-        return [get_json(f"{GITHUB_API}/repos/{repo}/releases/tags/{tag}")]
-    found = get_json(f"{GITHUB_API}/repos/{repo}/releases?per_page=30")
+        return [get_json(f"{GITHUB_API}/repos/{repo}/releases/tags/{tag}")] if page == 1 else []
+    found = get_json(f"{GITHUB_API}/repos/{repo}/releases?per_page={per_page}&page={page}")
     return [r for r in found if not r.get("draft") and not r.get("prerelease")]
 
 
@@ -1530,31 +1530,49 @@ def safe_extract(tar: tarfile.TarFile, dest: Path) -> None:
     tar.extractall(dest)
 
 
-def pick_llama_release(rels: list[dict]) -> tuple[str, dict | None, dict | None]:
-    """The newest bNNNN release at or above MIN_LLAMA_BUILD that has both Linux CUDA 12 files
-    (a release appears before its files are built, and some builds fail)."""
+def llama_cuda_majors(driver_major: int) -> tuple[str, ...]:
+    """CUDA builds the driver can run, preferred first (CUDA 12 runs on more drivers; 13 needs r580)."""
+    return ("12", "13") if not driver_major or driver_major >= MIN_DRIVER_CUDA13 else ("12",)
+
+
+def pick_llama_release(rels: list[dict], majors: tuple[str, ...] = ("12", "13")) -> tuple[str, dict | None, dict | None]:
+    """The newest bNNNN release at or above MIN_LLAMA_BUILD that has both Linux CUDA files of one of the
+    given CUDA major versions (a release appears hours before its files are built, and some builds fail)."""
     for rel in rels:
         m = re.fullmatch(r"b(\d+)", rel.get("tag_name", ""))
         if not m or int(m.group(1)) < MIN_LLAMA_BUILD:
             continue
         name = rel["tag_name"]
-        main = pick_asset(rel, rf"llama-{re.escape(name)}-bin-ubuntu-cuda-12\.\d+-x64\.tar\.gz")
-        runtime = pick_asset(rel, rf"cudart-llama-{re.escape(name)}-bin-ubuntu-cuda-12\.\d+-x64\.tar\.gz")
-        if main and runtime:
-            return name, main, runtime
+        for major in majors:
+            main = pick_asset(rel, rf"llama-{re.escape(name)}-bin-ubuntu-cuda-{major}\.\d+-x64\.tar\.gz")
+            runtime = pick_asset(rel, rf"cudart-llama-{re.escape(name)}-bin-ubuntu-cuda-{major}\.\d+-x64\.tar\.gz")
+            if main and runtime:
+                return name, main, runtime
+    return "", None, None
+
+
+def find_llama_release(tag: str, majors: tuple[str, ...], pages: int = 5) -> tuple[str, dict | None, dict | None]:
+    """Look back page by page: the newest releases often have no Linux files for days."""
+    for page in range(1, pages + 1):
+        rels = releases("ggml-org/llama.cpp", tag, page, 100)
+        found = pick_llama_release(rels, majors)
+        builds = [int(r["tag_name"][1:]) for r in rels if re.fullmatch(r"b\d+", r.get("tag_name", ""))]
+        if found[0] or not rels or (builds and min(builds) < MIN_LLAMA_BUILD):
+            return found
     return "", None, None
 
 
 def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path:
     step("llama.cpp with Inkling 2 support (CUDA)")
-    name, main, runtime = pick_llama_release(releases("ggml-org/llama.cpp", tag))
+    name, main, runtime = find_llama_release(tag, llama_cuda_majors(gpu["driver_major"]))
     if not name:
-        raise InstallError(f"no llama.cpp release b{MIN_LLAMA_BUILD} or newer with a Linux CUDA 12 build found yet; "
+        raise InstallError(f"no llama.cpp release b{MIN_LLAMA_BUILD} or newer with a Linux CUDA build found; "
                            "new releases appear every few hours, try again later")
+    cudart = "libcudart.so." + re.search(r"-cuda-(\d+)\.", main["name"]).group(1)
     folder = user_data / "llama-cpp" / f"llama-{name}"
     server = folder / "llama-server"
     done = folder / ".h3-unpacked"
-    if done.exists() and server.exists() and (folder / "libcudart.so.12").exists():
+    if done.exists() and server.exists() and (folder / cudart).exists():
         say(f"  ✓ llama.cpp {name} already installed")
     else:
         main_tar = download(main["browser_download_url"], downloads / main["name"], main.get("size"))
@@ -1573,8 +1591,8 @@ def install_llama(user_data: Path, downloads: Path, gpu: dict, tag: str) -> Path
                 if (folder / lib.name).exists() or (folder / lib.name).is_symlink():
                     (folder / lib.name).unlink()
                 shutil.move(str(lib), folder / lib.name)
-        if not (folder / "libcudart.so.12").exists():
-            raise InstallError(f"{runtime['name']} did not contain libcudart.so.12")
+        if not (folder / cudart).exists():
+            raise InstallError(f"{runtime['name']} did not contain {cudart}")
         server.chmod(server.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         done.write_text(main["name"] + "\n", encoding="utf-8")
     ensure_openmp(folder, downloads)

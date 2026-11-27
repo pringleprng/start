@@ -93,6 +93,29 @@ class PickReleases(unittest.TestCase):
         self.assertEqual(main["name"], "llama-b12655-bin-ubuntu-cuda-12.8-x64.tar.gz")
         self.assertEqual(runtime["name"], "cudart-llama-b12655-bin-ubuntu-cuda-12.8-x64.tar.gz")
 
+    def test_llama_cuda13_when_a_release_has_no_cuda12_files(self):
+        rels = [{"tag_name": "b12700", "assets": [_asset("llama-b12700-bin-ubuntu-cuda-13.5-x64.tar.gz"),
+                                                   _asset("cudart-llama-b12700-bin-ubuntu-cuda-13.5-x64.tar.gz")]}]
+        self.assertEqual(inst.pick_llama_release(rels)[1]["name"], "llama-b12700-bin-ubuntu-cuda-13.5-x64.tar.gz")
+        self.assertEqual(inst.pick_llama_release(rels, inst.llama_cuda_majors(570)), ("", None, None))
+        self.assertEqual(inst.llama_cuda_majors(615), ("12", "13"))
+
+    def test_llama_looks_back_past_the_first_page(self):
+        # b12819 to b12676 have no files yet (more than a page); b12675 has them
+        pages = {1: [{"tag_name": f"b{n}", "assets": []} for n in range(12819, 12719, -1)],
+                 2: [{"tag_name": f"b{n}", "assets": []} for n in range(12719, 12675, -1)] + [self.LLAMA[1] | {
+                     "tag_name": "b12675", "assets": [_asset("llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz"),
+                                                      _asset("cudart-llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz")]}]}
+        asked = []
+        real = inst.releases
+        inst.releases = lambda repo, tag="latest", page=1, per_page=30: asked.append(page) or pages.get(page, [])
+        try:
+            name, main, _ = inst.find_llama_release("latest", ("12", "13"))
+        finally:
+            inst.releases = real
+        self.assertEqual((name, asked), ("b12675", [1, 2]))
+        self.assertEqual(main["name"], "llama-b12675-bin-ubuntu-cuda-12.8-x64.tar.gz")
+
     def test_llama_never_older_than_the_inkling_fixes(self):
         old = [r for r in self.LLAMA if r["tag_name"] in ("b12638", "v1.0.0")]
         self.assertEqual(inst.pick_llama_release(old), ("", None, None))
