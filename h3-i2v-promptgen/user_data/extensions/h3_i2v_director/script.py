@@ -406,8 +406,17 @@ def _try_load(model, args):
     from modules.api.models import _load_model
 
     _server_lines.clear()
+    data = {"model_name": model, "args": args}
     try:
-        _load_model({"model_name": model, "args": args})
+        # TextGen's API load keeps the previous model's chat template: use this model's own (from the GGUF)
+        from modules.models_settings import get_model_metadata
+        template = get_model_metadata(model).get("instruction_template_str")
+        if template:
+            data["instruction_template_str"] = template
+    except Exception:
+        pass
+    try:
+        _load_model(data)
     except Exception as exc:
         logger.exception("H3 I2V Director: model load failed")
         detail = _server_error()
