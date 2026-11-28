@@ -81,6 +81,8 @@ MODE_BY_LABEL = {v: k for k, v in core.MODE_LABELS.items()}
 
 _stop = threading.Event()
 _override = {"path": None}
+_extra_server_flags = []                # added to the next llama-server start (low-VRAM retry)
+_server_lines = __import__("collections").deque(maxlen=400)   # llama-server's recent stderr lines
 _autoload_pending = threading.Event()   # set from start-up until the auto-load has run
 _loaded = {"profile": ""}   # how the current model was loaded by this tab
 
@@ -131,7 +133,45 @@ def _translate_flags(cmd):
     cmd = [c for c in cmd if c not in ("--no-mmap", "--mlock")]
     if no_mmap or mlock:
         cmd += ["--load-mode", "mlock" if (mlock and no_mmap) else ("mmap+mlock" if mlock else "none")]
-    return cmd
+    return cmd + [f for f in _extra_server_flags if f not in cmd]
+
+
+class _TeeStderr:
+    """llama-server's stderr as TextGen reads it, with each line also kept for the tab's error messages."""
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._buf = b""
+
+    def read(self, *args):
+        chunk = self._stream.read(*args)
+        if chunk:
+            self._buf += chunk
+            while b"\n" in self._buf:
+                line, self._buf = self._buf.split(b"\n", 1)
+                _server_lines.append(line.decode("utf-8", errors="replace").strip())
+        return chunk
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+_OOM_WORDS = ("out of memory", "failed to allocate", "unable to allocate")
+
+
+def _server_error():
+    """The line of the last llama-server start that says why it stopped, or ''."""
+    time.sleep(0.3)  # TextGen's reader thread may still be catching up
+    lines = [re.sub(r"^[\d.]+\s+[IWED]\s+", "", ln) for ln in list(_server_lines)]
+    for words in (_OOM_WORDS[:1], _OOM_WORDS, ("unknown model architecture", "error loading model"), (" error", "failed")):
+        for ln in reversed(lines):
+            if any(w in ln.lower() for w in words):
+                return ln[:300]
+    return ""
+
+
+def _is_oom(error):
+    return any(w in (error or "").lower() for w in _OOM_WORDS)
 
 
 class _SubprocessShim:
@@ -167,6 +207,9 @@ def _use_llama_server(path):
 
         cls.__init__ = __init__
         lcs.subprocess = _SubprocessShim(lcs.subprocess)
+        reader = getattr(lcs, "filter_stderr_with_progress", None)
+        if reader is not None:
+            lcs.filter_stderr_with_progress = lambda stderr: reader(_TeeStderr(stderr))
     _override["path"] = str(path)
     logger.info(f"H3 I2V Director: TextGen's llama.cpp loader will use {path}")
     build = _llama_build(path)
@@ -286,52 +329,92 @@ def load_inkling(model_file="", mmproj_file="", profile_key=None, budget_gb=None
     budget = float(budget_gb if budget_gb is not None else params["vram_budget_gb"])
     if not _load_lock.acquire(blocking=False):
         return "⏳ Inkling is already being loaded; wait a moment (the status line above updates by itself)."
-    vision_note = ""
+    vision_note = low_note = ""
     try:
         unload_model()  # measure free VRAM without the previous copy of the model
-        margin = sysinfo.fit_margin_mb(profile, budget, _mmproj_mb(mmproj), sysinfo.gpu_info())
-        args = sysinfo.load_args(mmproj, params["ctx_size"], margin)
-        logger.info(f"H3 I2V Director: loading {model} (mmproj {mmproj or 'none'}, profile {profile}, "
-                    f"leaving {margin} MiB of VRAM free)")
-        error = _try_load(model, args)
+        error = _attempt(model, mmproj, profile, budget)
+        step = None
+        if _is_oom(error):
+            # Inkling's looped layers need big GPU buffers to read a prompt, and llama.cpp sizes itself to the
+            # VRAM that is free at that moment (Fooocus changes it): try again with small buffers
+            for step in LOW_VRAM_STEPS:
+                logger.warning(f"H3 I2V Director: out of GPU memory ({error}); trying again with smaller GPU buffers")
+                unload_model()
+                error = _attempt(model, mmproj, profile, budget, step)
+                if not _is_oom(error):
+                    break
         if error and mmproj:
-            # a vision file that does not fit this model or this llama.cpp: keep the text side working
+            # a vision file that does not fit this model or this llama.cpp, or no room for it: keep the text side
             logger.warning(f"H3 I2V Director: loading with {mmproj} failed ({error}); trying without vision")
             unload_model()
-            margin = sysinfo.fit_margin_mb(profile, budget, 0, sysinfo.gpu_info())
-            if not _try_load(model, sysinfo.load_args("", params["ctx_size"], margin)):
-                vision_note = (f" ⚠️ The vision file `{mmproj}` did not load ({error}), so pictures cannot be read: "
+            if not _attempt(model, "", profile, budget, step):
+                vision_note = (f" ⚠️ Not enough free GPU memory for the vision file ({error}), so pictures cannot be "
+                               "read: press *Load Inkling* again while Fooocus is idle or closed."
+                               if _is_oom(error) else
+                               f" ⚠️ The vision file `{mmproj}` did not load ({error}), so pictures cannot be read: "
                                "pick another mmproj file in the list (it must come from the same Inkling 2 Mini "
                                "upload) and press *Load Inkling*.")
                 mmproj = ""
                 error = None
         if error:
             hint = ""
-            if "inkling" in error.lower() or "architecture" in error.lower() or not _override["path"]:
+            if _is_oom(error):
+                hint = (" The GPU is out of memory: close Fooocus or wait until it is idle, then press *Load Inkling*"
+                        " (or lower the VRAM budget).")
+            elif "inkling" in error.lower() or "architecture" in error.lower() or not _override["path"]:
                 hint = (f" TextGen's built-in llama.cpp is too old for Inkling 2: put a llama.cpp release "
                         f"(b{MIN_LLAMA_BUILD} or newer) in `user_data/llama-cpp/` and restart TextGen, "
                         "or run the setup script again.")
             return f"❌ Loading failed: {error}.{hint}"
+        if step:
+            low_note = (" · low-VRAM mode (the GPU was short of memory, probably Fooocus): reading prompts is slower;"
+                        " press *Load Inkling* while Fooocus is idle for full speed")
     finally:
         _load_lock.release()
     where = (f"VRAM budget {budget:g} GB, the rest in system RAM" if profile == "fit"
              else "as much as fits on the GPU")
     _loaded.update(profile=where, model=model)
-    return (f"✅ Loaded `{model}` with {'`' + mmproj + '`' if mmproj else 'no mmproj (no vision)'} · {where}."
-            + vision_note)
+    return (f"✅ Loaded `{model}` with {'`' + mmproj + '`' if mmproj else 'no mmproj (no vision)'} · {where}"
+            + low_note + "." + vision_note)
+
+
+# retries after running out of GPU memory: smaller prompt-reading buffers, and no copies of the weights kept
+# in system RAM onto the GPU while reading a prompt (the CPU does that part: slower, but it fits)
+LOW_VRAM_STEPS = (
+    {"ubatch_size": 512, "cpu_moe": False, "flags": ["--no-op-offload"]},
+    {"ubatch_size": 256, "cpu_moe": True, "flags": ["--no-op-offload"]},
+)
+
+
+def _attempt(model, mmproj, profile, budget, step=None):
+    """One load. None on success, else a short error text."""
+    margin = sysinfo.fit_margin_mb(profile, budget, _mmproj_mb(mmproj) if mmproj else 0, sysinfo.gpu_info())
+    args = sysinfo.load_args(mmproj, params["ctx_size"], margin)
+    if step:
+        args.update(ubatch_size=step["ubatch_size"], cpu_moe=step["cpu_moe"])
+    logger.info(f"H3 I2V Director: loading {model} (mmproj {mmproj or 'none'}, profile {profile}, "
+                f"leaving {margin} MiB of VRAM free{', low-VRAM settings' if step else ''})")
+    _extra_server_flags[:] = step["flags"] if step else []
+    try:
+        return _try_load(model, args)
+    finally:
+        _extra_server_flags.clear()
 
 
 def _try_load(model, args):
     """Load through TextGen. None on success, else a short error text."""
     from modules.api.models import _load_model
 
+    _server_lines.clear()
     try:
         _load_model({"model_name": model, "args": args})
     except Exception as exc:
         logger.exception("H3 I2V Director: model load failed")
-        return f"{type(exc).__name__}: {exc}"
+        detail = _server_error()
+        return f"{type(exc).__name__}: {exc}" + (f" (llama.cpp: {detail})" if detail else "")
     if shared.model is None:
-        return "llama-server did not start (see the TextGen console)"
+        detail = _server_error()
+        return f"llama-server stopped: {detail}" if detail else "llama-server did not start (see the TextGen console)"
     return None
 
 
